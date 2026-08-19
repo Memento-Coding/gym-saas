@@ -1,0 +1,77 @@
+{
+  "students": [],
+  "costs": {
+    "memberships": [
+      {
+        "id": "m1",
+        "name": "Premium",
+        "price": 110000
+      },
+      {
+        "id": "m2",
+        "name": "Estándar",
+        "price": 95000
+      },
+      {
+        "id": "m3",
+        "name": "Básico",
+        "price": 80000
+      },
+      {
+        "id": "m4",
+        "name": "Entrenamiento funcional",
+        "price": 80000
+      },
+      {
+        "id": "m5",
+        "name": "Clase única",
+        "price": 20000,
+        "single": true
+      }
+    ],
+    "personalized": [
+      {
+        "id": "p1",
+        "name": "1 clase",
+        "price": 60000,
+        "single": true
+      },
+      {
+        "id": "p2",
+        "name": "1 clase semanal · 4 al mes",
+        "price": 220000,
+        "classesPerMonth": 4
+      },
+      {
+        "id": "p3",
+        "name": "2 clases/semana · 8 al mes",
+        "price": 430000,
+        "classesPerMonth": 8
+      },
+      {
+        "id": "p4",
+        "name": "3 clases/semana · 12 al mes",
+        "price": 575000,
+        "classesPerMonth": 12
+      },
+      {
+        "id": "p5",
+        "name": "5 días/semana · 20 al mes",
+        "price": 790000,
+        "classesPerMonth": 20
+      }
+    ]
+  },
+  "consent": {
+    "version": 1,
+    "updatedDate": "2026-01-01",
+    "text": "CONSENTIMIENTO INFORMADO, EXENCIÓN DE RESPONSABILIDAD Y AUTORIZACIÓN DE IMAGEN\nMERAKI MARTIAL ARTS ACADEMY\n\n1. NATURALEZA DE LA ACTIVIDAD\nDeclaro que deseo participar de forma libre y voluntaria en las clases, entrenamientos y actividades de artes marciales y deportes de combate ofrecidas por MERAKI Martial Arts Academy, entendiendo que se trata de una práctica de contacto físico de alta exigencia.\n\n2. RECONOCIMIENTO DE RIESGOS\nReconozco y acepto que los deportes de combate implican riesgos inherentes que pueden causar lesiones leves, moderadas o graves, incluyendo entre otros: contusiones, esguinces, luxaciones, fracturas, lesiones articulares, musculares, dentales, oculares, traumatismos y, en casos excepcionales, lesiones de mayor gravedad. Comprendo que ningún equipo de protección ni supervisión elimina por completo estos riesgos.\n\n3. DECLARACIÓN DE APTITUD FÍSICA\nDeclaro que me encuentro en condiciones físicas adecuadas para realizar esta actividad y que he informado al personal de la academia sobre cualquier condición médica, lesión previa o limitación relevante. Me comprometo a actualizar dicha información ante cualquier cambio en mi estado de salud.\n\n4. EXENCIÓN DE RESPONSABILIDAD (DESISTIMIENTO)\nAsumo bajo mi propia responsabilidad los riesgos derivados de la práctica y, en la medida permitida por la ley, exonero a MERAKI Martial Arts Academy, a sus instructores, personal y representantes de toda responsabilidad por lesiones o daños que pudieran producirse durante o como consecuencia de las actividades, salvo en los casos de dolo o culpa grave imputables a la academia.\n\n5. COMPROMISO DE CONDUCTA\nMe comprometo a seguir las instrucciones de los entrenadores, respetar las normas de seguridad, el reglamento interno y a mis compañeros de entrenamiento.\n\n6. AUTORIZACIÓN DE USO DE IMAGEN Y PUBLICIDAD EN REDES SOCIALES\nAutorizo de manera libre a MERAKI Martial Arts Academy para captar, almacenar y publicar fotografías y/o videos en los que aparezca mi imagen, con fines de difusión, promoción y publicidad de la academia en redes sociales, página web y material publicitario, sin que ello genere contraprestación económica alguna. Entiendo que puedo revocar esta autorización por escrito en cualquier momento.\n\n7. TRATAMIENTO DE DATOS PERSONALES\nAutorizo el tratamiento de mis datos personales conforme a la normatividad vigente, para fines administrativos, de contacto y de gestión de mi membresía.\n\n8. DECLARACIÓN FINAL\nDeclaro que he leído, comprendido y aceptado en su totalidad el presente documento, y que firmo de forma libre y consciente.",
+    "minorText": "CONSENTIMIENTO INFORMADO PARA MENOR DE EDAD, EXENCIÓN DE RESPONSABILIDAD Y AUTORIZACIÓN DE IMAGEN\nMERAKI MARTIAL ARTS ACADEMY\n\nYo, en calidad de PADRE, MADRE o REPRESENTANTE LEGAL del menor de edad aquí inscrito, actuando en su nombre y representación, declaro lo siguiente:\n\n1. AUTORIZACIÓN DE PARTICIPACIÓN\nAutorizo de forma libre y voluntaria que el menor bajo mi representación participe en las clases, entrenamientos y actividades de artes marciales y deportes de combate ofrecidas por MERAKI Martial Arts Academy, entendiendo que se trata de una práctica de contacto físico de alta exigencia.\n\n2. RECONOCIMIENTO DE RIESGOS\nReconozco y acepto que los deportes de combate implican riesgos inherentes que pueden causar lesiones leves, moderadas o graves al menor, incluyendo entre otros: contusiones, esguinces, luxaciones, fracturas, lesiones articulares, musculares, dentales, oculares y traumatismos. Comprendo que ningún equipo de protección ni supervisión elimina por completo estos riesgos.\n\n3. DECLARACIÓN DE APTITUD FÍSICA DEL MENOR\nDeclaro que el menor se encuentra en condiciones físicas adecuadas para realizar esta actividad y que he informado al personal de la academia sobre cualquier condición médica, lesión previa o limitación relevante del menor, comprometiéndome a actualizar dicha información ante cualquier cambio.\n\n4. EXENCIÓN DE RESPONSABILIDAD (DESISTIMIENTO)\nEn mi calidad de representante legal, y en la medida permitida por la ley, asumo los riesgos derivados de la práctica del menor y exonero a MERAKI Martial Arts Academy, a sus instructores, personal y representantes de toda responsabilidad por lesiones o daños que pudieran producirse durante o como consecuencia de las actividades, salvo en los casos de dolo o culpa grave imputables a la academia.\n\n5. COMPROMISO\nMe comprometo a que el menor siga las instrucciones de los entrenadores, respete las normas de seguridad y el reglamento interno.\n\n6. AUTORIZACIÓN DE USO DE IMAGEN DEL MENOR\nAutorizo de manera libre a MERAKI Martial Arts Academy para captar, almacenar y publicar fotografías y/o videos en los que aparezca la imagen del menor, con fines de difusión, promoción y publicidad de la academia en redes sociales, página web y material publicitario, sin contraprestación económica. Entiendo que puedo revocar esta autorización por escrito en cualquier momento.\n\n7. TRATAMIENTO DE DATOS PERSONALES\nAutorizo el tratamiento de los datos personales del menor conforme a la normatividad vigente, para fines administrativos, de contacto y de gestión de la membresía.\n\n8. DECLARACIÓN FINAL\nDeclaro que he leído, comprendido y aceptado en su totalidad el presente documento, y que firmo de forma libre y consciente en calidad de representante legal del menor."
+  },
+  "finance": [],
+  "inventory": [],
+  "sales": [],
+  "meta": {
+    "seq": 1
+  }
+}
