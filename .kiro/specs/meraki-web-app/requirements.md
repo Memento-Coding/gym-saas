@@ -28,6 +28,8 @@ Transformación del sistema monolítico de gestión de GymOps por Memento Coding
 - **Consentimiento**: Documento legal versionado que cada estudiante debe firmar
 - **Venta_a_Crédito**: Venta de productos con plan de cuotas y seguimiento de pagos pendientes
 - **Configuración_Formulario**: Definición dinámica de los campos que componen el formulario de registro de estudiantes, incluyendo nombre, tipo de dato y obligatoriedad de cada campo
+- **Módulo_Autenticación**: Componente que gestiona el inicio de sesión, registro de usuarios administrativos y protección de rutas mediante AWS Cognito
+- **Cognito_User_Pool**: Servicio de AWS que almacena y autentica las credenciales de los usuarios administrativos del sistema
 
 ## Requirements
 
@@ -253,3 +255,20 @@ Transformación del sistema monolítico de gestión de GymOps por Memento Coding
 7. THE Sistema SHALL permitir al administrador eliminar campos personalizados del formulario de registro de estudiantes
 8. THE Sistema SHALL permitir al administrador cambiar la obligatoriedad de cada campo del formulario entre obligatorio y opcional
 9. THE Sistema SHALL persistir la configuración de campos del formulario de registro de manera que sobreviva al reinicio de la aplicación
+
+### Requirement 16: Autenticación y control de acceso
+
+**User Story:** Como administrador, quiero que el acceso al sistema esté protegido con autenticación segura, para que solo usuarios autorizados puedan gestionar los datos de la academia.
+
+#### Acceptance Criteria
+
+1. THE Sistema SHALL requerir autenticación mediante AWS Cognito antes de permitir acceso a cualquier módulo o ruta protegida
+2. THE Módulo_Autenticación SHALL soportar inicio de sesión con email y contraseña
+3. THE Módulo_Autenticación SHALL soportar inicio de sesión con cuenta de Google (OAuth 2.0 social login)
+4. WHEN un usuario no autenticado intenta acceder a una ruta protegida, THE Sistema SHALL redirigir automáticamente a la página de login
+5. THE Módulo_Autenticación SHALL gestionar tokens JWT (access token, refresh token, ID token) emitidos por Cognito de forma segura en el cliente
+6. WHEN el access token expira, THE Módulo_Autenticación SHALL renovar la sesión automáticamente usando el refresh token sin interrumpir la experiencia del usuario
+7. THE Módulo_Autenticación SHALL permitir cerrar sesión eliminando los tokens almacenados y redirigiendo al login
+8. THE Módulo_Autenticación SHALL permitir recuperación de contraseña mediante un flujo de verificación por email
+9. THE Sistema SHALL mostrar el nombre y email del usuario autenticado en la interfaz (header/sidebar)
+10. THE Módulo_Autenticación SHALL soportar un flujo de registro de nuevos usuarios administrativos con verificación de email
