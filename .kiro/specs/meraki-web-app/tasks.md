@@ -415,7 +415,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Generar estudiante con consent firmado, re-firmar, verificar append a history
     - **Validates: Requirements 6.3, 6.7**
 
-  - [ ] 22.3 Implementar componentes de consentimiento
+  - [x] 22.3 Implementar componentes de consentimiento
     - Crear `src/hooks/useConsent.ts`
     - Crear `src/pages/ConsentPage.tsx` con gestión de consentimiento
     - Crear `src/components/consent/ConsentViewer.tsx` para ver textos por versión
