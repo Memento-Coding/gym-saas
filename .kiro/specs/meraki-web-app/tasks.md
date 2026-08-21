@@ -17,8 +17,8 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
 
 > Todos los desarrolladores colaboran en esta fase. DEBE completarse antes de iniciar Phase 1.
 
-- [ ] 1. Scaffolding del proyecto y configuración base
-  - [ ] 1.1 Inicializar proyecto con Vite + React 18 + TypeScript
+- [x] 1. Scaffolding del proyecto y configuración base
+  - [x] 1.1 Inicializar proyecto con Vite + React 18 + TypeScript
     - Ejecutar `npm create vite@latest` con template react-ts
     - Configurar `tsconfig.json` con strict mode y path aliases (`@/`)
     - Instalar dependencias base: `react-router-dom`, `framer-motion`, `clsx`, `tailwind-merge`, `class-variance-authority`
@@ -26,7 +26,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Crear `src/lib/utils.ts` con la función `cn()` (clsx + tailwind-merge)
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-  - [ ] 1.2 Configurar Tailwind CSS v4 con design system tokens
+  - [x] 1.2 Configurar Tailwind CSS v4 con design system tokens
     - Instalar `tailwindcss` y `@tailwindcss/postcss`
     - Crear archivo CSS principal con todas las CSS custom properties del design system (colores, tipografía, spacing, shadows, border-radius, springs)
     - Configurar `tailwind.config.ts` mapeando tokens CSS a la configuración de Tailwind (colors, fontFamily, borderRadius)
@@ -35,21 +35,21 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Agregar media queries para `prefers-reduced-motion`, `prefers-reduced-transparency`, `prefers-contrast`
     - _Requirements: 1.1_
 
-  - [ ] 1.3 Configurar shadcn/ui y componentes base
+  - [x] 1.3 Configurar shadcn/ui y componentes base
     - Ejecutar `npx shadcn@latest init` con configuración del proyecto
     - Agregar componentes shadcn necesarios: button, input, dialog, sheet, table, badge, card, select, tabs, dropdown-menu, sonner, form, label, popover, command, calendar
     - Verificar que los componentes usan los tokens CSS del design system
     - _Requirements: 1.1_
 
-  - [ ] 1.4 Configurar Vitest y fast-check para testing
+  - [x] 1.4 Configurar Vitest y fast-check para testing
     - Instalar `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `fast-check`, `jsdom`
     - Configurar `vitest.config.ts` con environment jsdom
     - Crear archivo de setup para testing library
     - Crear carpeta `src/__tests__/` con estructura por módulo
     - _Requirements: 1.1_
 
-- [ ] 2. Tipos de datos y capa de persistencia
-  - [ ] 2.1 Definir todas las interfaces y tipos TypeScript
+- [x] 2. Tipos de datos y capa de persistencia
+  - [x] 2.1 Definir todas las interfaces y tipos TypeScript
     - Crear `src/types/student.ts` con interfaces Student, ConsentRecord, ConsentHistoryEntry
     - Crear `src/types/membership.ts` con interfaces MembershipPlan, CostsConfig
     - Crear `src/types/payment.ts` con interfaces Payment, PaymentSplit, PaymentMethod
@@ -62,7 +62,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Crear `src/types/settings.ts` con interfaces BrandingConfig, FormFieldConfig, AppMeta, AuthConfig
     - _Requirements: 1.4, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1, 12.1, 13.1, 15.1_
 
-  - [ ] 2.2 Implementar StorageService con IndexedDB y localStorage
+  - [x] 2.2 Implementar StorageService con IndexedDB y localStorage
     - Crear `src/services/storage/StorageService.ts` con interfaz unificada CRUD: get, set, delete, keys, exportAll, importAll, clear
     - Crear `src/services/storage/IndexedDBAdapter.ts` como adaptador primario
     - Crear `src/services/storage/LocalStorageAdapter.ts` como adaptador de fallback
@@ -79,7 +79,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Mínimo 100 iteraciones
     - **Validates: Requirements 2.3, 3.1**
 
-  - [ ] 2.4 Implementar BackupService para exportación/importación
+  - [x] 2.4 Implementar BackupService para exportación/importación
     - Crear `src/services/BackupService.ts`
     - Implementar `exportAll()` que genera JSON con formato `gymops_backup_YYYY-MM-DD.json`
     - Implementar `importAll()` con validación de estructura antes de sobrescribir
@@ -99,15 +99,15 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Verificar unicidad y monotonicidad estricta del formato `GOP-XXXX`
     - **Validates: Requirements 2.4, 2.5, 2.7, 5.5, 9.7, 15.2, 15.3**
 
-- [ ] 3. Autenticación (AWS Cognito)
-  - [ ] 3.1 Implementar AuthService con AWS Amplify
+- [x] 3. Autenticación (AWS Cognito)
+  - [x] 3.1 Implementar AuthService con AWS Amplify
     - Instalar `aws-amplify` v6
     - Crear `src/services/auth/AuthService.ts` wrapper sobre Amplify Auth con: signIn, signInWithGoogle, signUp, confirmSignUp, signOut, getCurrentUser, getAccessToken, resetPassword, confirmResetPassword
     - Configurar Amplify con AuthConfig (userPoolId, userPoolClientId, region, oauthDomain, redirects)
     - Implementar gestión de tokens JWT (access, refresh, ID token) con refresh automático
     - _Requirements: 16.1, 16.2, 16.3, 16.5, 16.6_
 
-  - [ ] 3.2 Implementar AuthProvider y ProtectedRoute
+  - [x] 3.2 Implementar AuthProvider y ProtectedRoute
     - Crear `src/services/auth/AuthProvider.tsx` con React Context para estado de sesión
     - Crear `src/services/auth/ProtectedRoute.tsx` como HOC para rutas protegidas
     - Implementar redirección automática a `/login` para usuarios no autenticados
@@ -115,7 +115,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Mostrar nombre y email del usuario autenticado en header/sidebar
     - _Requirements: 16.4, 16.6, 16.7, 16.9_
 
-  - [ ] 3.3 Implementar páginas de autenticación
+  - [x] 3.3 Implementar páginas de autenticación
     - Crear `src/pages/LoginPage.tsx` con formulario email/password y botón de Google OAuth
     - Crear `src/pages/RegisterPage.tsx` con flujo de registro + verificación por email
     - Crear `src/pages/ForgotPasswordPage.tsx` con flujo de recuperación de contraseña
@@ -128,8 +128,8 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Verificar que rutas públicas (/login, /registro, /recuperar-password) no redirigen
     - **Validates: Requirements 16.1, 16.4**
 
-- [ ] 4. Configurar enrutamiento y layout shell (sin contenido de módulos)
-  - [ ] 4.1 Crear layout principal y rutas placeholder
+- [x] 4. Configurar enrutamiento y layout shell (sin contenido de módulos)
+  - [x] 4.1 Crear layout principal y rutas placeholder
     - Configurar React Router v6 con rutas: `/`, `/estudiantes`, `/estudiantes/:id`, `/finanzas`, `/cortesias`, `/comunicacion`, `/consentimiento`, `/ajustes`, `/login`, `/registro`, `/recuperar-password`
     - Crear layout principal con sidebar (desktop) y drawer (mobile) usando materiales translúcidos (frosted glass)
     - Implementar responsive behavior: sidebar oculto (drawer) en mobile, colapsado (iconos) en tablet, expandido en desktop
@@ -138,7 +138,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Crear páginas placeholder para cada ruta (solo título y layout)
     - _Requirements: 1.6, 16.1, 16.4_
 
-- [ ] 5. Checkpoint Phase 0 - Verificar fundación
+- [x] 5. Checkpoint Phase 0 - Verificar fundación
   - Ensure all tests pass, ask the user if questions arise.
   - Verificar que todos los tipos compilan, persistencia funciona, auth protege rutas, y el shell de la app navega correctamente.
 
