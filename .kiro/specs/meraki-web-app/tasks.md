@@ -37,7 +37,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
 
   - [ ] 1.3 Configurar shadcn/ui y componentes base
     - Ejecutar `npx shadcn@latest init` con configuración del proyecto
-    - Agregar componentes shadcn necesarios: button, input, dialog, sheet, table, badge, card, select, tabs, dropdown-menu, toast, form, label, popover, command, calendar
+    - Agregar componentes shadcn necesarios: button, input, dialog, sheet, table, badge, card, select, tabs, dropdown-menu, sonner, form, label, popover, command, calendar
     - Verificar que los componentes usan los tokens CSS del design system
     - _Requirements: 1.1_
 
