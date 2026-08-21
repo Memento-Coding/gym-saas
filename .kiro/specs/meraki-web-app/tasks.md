@@ -400,7 +400,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
 ### Track E — Dev 5: Comunicación + Consentimiento + Cortesías + Ajustes (Req 6, 12, 13, 15)
 
 - [ ] 22. Módulo de consentimiento informado
-  - [ ] 22.1 Implementar ConsentService
+  - [x] 22.1 Implementar ConsentService
     - Crear `src/services/ConsentService.ts`
     - Implementar versionado con texto separado para adultos y menores
     - Implementar actualización de versión que marca a todos los estudiantes como pendientes
