@@ -316,8 +316,122 @@ export class StudentService {
   }
 
   // ---------------------------------------------------------------------------
+  // Congelamiento de membresías (Req 11.1, 11.2 y 11.3)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Congela la membresía de un estudiante (Req 11.1 y 11.2).
+   *
+   * Efectos:
+   *  - Registra freezeReason con la razón proveída.
+   *  - Fija freezeDate a la fecha actual (ISO YYYY-MM-DD).
+   *  - Calcula freezeEndDate = hoy + days.
+   *  - Extiende automáticamente subscriptionEndDate en la misma cantidad de days,
+   *    de modo que el tiempo congelado no se pierde.
+   *  - Recalcula el status (que resultará 'frozen' mientras freezeEndDate sea futuro).
+   *
+   * @param id     Identificador del estudiante.
+   * @param reason Motivo del congelamiento.
+   * @param days   Cantidad de días a congelar (debe ser positivo).
+   */
+  async freezeStudent(
+    id: string,
+    reason: string,
+    days: number,
+  ): Promise<ServiceResult<Student>> {
+    try {
+      if (!Number.isFinite(days) || days <= 0) {
+        return { success: false, error: 'La cantidad de días debe ser un número positivo.' };
+      }
+
+      const students = await this.read();
+      const index = students.findIndex((s) => s.id === id);
+      if (index === -1) {
+        return { success: false, error: 'Estudiante no encontrado.' };
+      }
+
+      const current = students[index];
+      const today = new Date();
+
+      // Extensión automática de la fecha de vencimiento (Req 11.2).
+      const baseSubEnd = new Date(current.subscriptionEndDate);
+      const extendedSubEnd = Number.isNaN(baseSubEnd.getTime())
+        ? this.addDaysIso(today, days)
+        : this.addDaysIso(baseSubEnd, days);
+
+      const frozen: Student = {
+        ...current,
+        freezeReason: reason,
+        freezeDate: this.toIsoDate(today),
+        freezeEndDate: this.addDaysIso(today, days),
+        subscriptionEndDate: extendedSubEnd,
+      };
+
+      const updated = this.withEvaluatedStatus(frozen, today);
+      const next = [...students];
+      next[index] = updated;
+      await this.write(next);
+
+      return { success: true, data: updated };
+    } catch (error) {
+      return { success: false, error: this.toErrorMessage(error) };
+    }
+  }
+
+  /**
+   * Descongela la membresía de un estudiante (Req 11.3).
+   *
+   * Limpia freezeReason, freezeDate y freezeEndDate. Al desaparecer freezeEndDate,
+   * evaluateStatus reclasifica automáticamente al estudiante como 'active' o
+   * 'inactive' según su subscriptionEndDate.
+   *
+   * @param id Identificador del estudiante.
+   */
+  async unfreezeStudent(id: string): Promise<ServiceResult<Student>> {
+    try {
+      const students = await this.read();
+      const index = students.findIndex((s) => s.id === id);
+      if (index === -1) {
+        return { success: false, error: 'Estudiante no encontrado.' };
+      }
+
+      const thawed: Student = {
+        ...students[index],
+        freezeReason: undefined,
+        freezeDate: undefined,
+        freezeEndDate: undefined,
+      };
+
+      // Sin freezeEndDate, evaluateStatus decide active/inactive automáticamente.
+      const updated = this.withEvaluatedStatus(thawed);
+      const next = [...students];
+      next[index] = updated;
+      await this.write(next);
+
+      return { success: true, data: updated };
+    } catch (error) {
+      return { success: false, error: this.toErrorMessage(error) };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Utilidades
   // ---------------------------------------------------------------------------
+
+  /** Convierte un Date a string ISO de fecha (YYYY-MM-DD). */
+  private toIsoDate(date: Date): string {
+    return date.toISOString().split('T')[0];
+  }
+
+  /**
+   * Suma `days` días a una fecha base y devuelve el ISO date resultante.
+   * Usa setDate para manejar correctamente saltos de mes/año.
+   */
+  private addDaysIso(base: Date, days: number): string {
+    const date = new Date(base.getTime());
+    date.setDate(date.getDate() + days);
+    return this.toIsoDate(date);
+  }
 
   /** Normaliza cualquier valor lanzado a un mensaje de error legible. */
   private toErrorMessage(error: unknown): string {
