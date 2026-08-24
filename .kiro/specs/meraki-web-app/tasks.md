@@ -466,8 +466,8 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Generar estudiante con subscriptionEndDate D, registrar bono, verificar D sin cambio
     - **Validates: Requirements 13.3**
 
-- [ ] 25. Configuración y personalización
-  - [ ] 25.1 Implementar SettingsPage y componentes
+- [x] 25. Configuración y personalización
+  - [x] 25.1 Implementar SettingsPage y componentes
     - Crear `src/hooks/useSettings.ts`
     - Crear `src/pages/SettingsPage.tsx` con secciones: branding, planes, formulario, backup, canales de comunicación
     - Crear `src/components/settings/BrandingForm.tsx` para logo, wordmark, tagline
