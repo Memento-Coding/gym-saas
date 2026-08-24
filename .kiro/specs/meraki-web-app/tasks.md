@@ -424,7 +424,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - _Requirements: 6.1, 6.4, 6.6_
 
 - [ ] 23. Módulo de comunicación multicanal
-  - [ ] 23.1 Implementar CommunicationService e interfaz de canales
+  - [x] 23.1 Implementar CommunicationService e interfaz de canales
     - Crear `src/services/communication/ChannelInterface.ts` con interfaz CommunicationChannel
     - Crear `src/services/communication/EmailChannel.ts` (Fase 1) — envío por email con plantilla
     - Crear `src/services/communication/TelegramChannel.ts` (Fase 2) — envío via bot de Telegram
