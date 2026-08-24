@@ -452,8 +452,8 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Implementar envío en lote con reporte de omitidos por falta de contacto
     - _Requirements: 12.4, 12.6, 12.9, 12.10, 12.12, 12.13, 12.15, 12.16_
 
-- [ ] 24. Módulo de cortesías
-  - [ ] 24.1 Implementar CourtesyService y componentes
+- [x] 24. Módulo de cortesías
+  - [x] 24.1 Implementar CourtesyService y componentes
     - Crear `src/services/CourtesyService.ts`
     - Implementar registro de bonos con fecha inicio, fin, razón y duración en semanas
     - Implementar que los bonos NO modifican la fecha de vencimiento de membresía
