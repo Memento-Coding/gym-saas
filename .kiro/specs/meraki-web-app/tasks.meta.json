@@ -7,6 +7,25 @@
         "chatSessionId": "sess_2b8a6c1e-98f4-4446-8df0-f585dae990f2",
         "timestamp": 1787597076906
       }
+    ],
+    "23.3 Implementar componentes de comunicación": [
+      {
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787601639583
+      },
+      {
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787607576977
+      }
+    ],
+    "23. Módulo de comunicación multicanal": [
+      {
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787607577093
+      }
     ]
   }
 }
