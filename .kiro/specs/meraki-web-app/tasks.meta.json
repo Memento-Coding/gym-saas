@@ -8,23 +8,23 @@
         "timestamp": 1787597076906
       }
     ],
-    "24.1 Implementar CourtesyService y componentes": [
+    "23.3 Implementar componentes de comunicación": [
       {
-        "executionId": "aed17ec4-4ec8-4730-ae6b-9eeb7750a27a",
-        "chatSessionId": "sess_1ba401a4-f460-425b-9451-2d7d5620c5d1",
-        "timestamp": 1787609032408
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787601639583
       },
       {
-        "executionId": "aed17ec4-4ec8-4730-ae6b-9eeb7750a27a",
-        "chatSessionId": "sess_1ba401a4-f460-425b-9451-2d7d5620c5d1",
-        "timestamp": 1787609245851
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787607576977
       }
     ],
-    "24. Módulo de cortesías": [
+    "23. Módulo de comunicación multicanal": [
       {
-        "executionId": "aed17ec4-4ec8-4730-ae6b-9eeb7750a27a",
-        "chatSessionId": "sess_1ba401a4-f460-425b-9451-2d7d5620c5d1",
-        "timestamp": 1787609245934
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787607577093
       }
     ]
   }
