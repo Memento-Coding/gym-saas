@@ -1,329 +1,272 @@
 /**
- * PaymentService — Registro y gestión de pagos de mensualidad.
+ * PaymentService — Módulo de pagos (Track B).
  *
- * Responsabilidades:
- * - Registrar pagos con extensión de subscriptionEndDate (status 'paid').
- * - Manejar upgrades de plan sin extender fecha (status 'upgrade').
- * - Soportar pagos a crédito con plan de cuotas y seguimiento de saldo.
- * - Validar pagos divididos (split) donde sum(splits) === totalAmount.
- * - Aplicar descuentos con monto y razón.
- * - Generar secuencia única y estrictamente creciente de comprobantes GOP-XXXX.
- * - Persistir pagos embebidos en Student.payments[].
+ * Registra pagos de mensualidad vinculados a estudiantes, calcula la extensión
+ * de la fecha de vencimiento, valida pagos divididos (splits), genera números
+ * de comprobante secuenciales `GOP-XXXX` y soporta pagos a crédito.
+ *
+ * Usa el StorageService de la Fase 0 (inyectable; por defecto el singleton).
  *
  * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7
  */
 
-import type { StorageService } from '@/services/storage/StorageService';
+import { getStorageService, type StorageService } from '@/services/storage/StorageService';
 import type { Payment, PaymentMethod, PaymentSplit } from '@/types/payment';
 import type { MembershipPlan } from '@/types/membership';
-import type { Student } from '@/types/student';
-import { MembershipService } from '@/services/MembershipService';
+import type { AppMeta } from '@/types/settings';
+import type { CreditPlan } from '@/types/sale';
 
-/** Storage key para la secuencia de comprobantes */
-const RECEIPT_SEQ_KEY = 'gymops_receipt_sequence';
+/** Clave de storage para el metadato de secuencia de comprobantes. */
+const META_KEY = 'meta';
+/** Clave de storage para el historial de pagos. */
+const PAYMENTS_KEY = 'payments';
+/** Cantidad mínima de dígitos del número de comprobante GOP-XXXX. */
+const RECEIPT_PAD = 4;
 
-/** Storage key para estudiantes (misma clave que StudentService) */
-const STUDENTS_KEY = 'gymops_students';
+/** Resultado discriminado consistente para todas las operaciones. */
+export type ServiceResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
 
-// ---------------------------------------------------------------------------
-// Tipos de entrada
-// ---------------------------------------------------------------------------
-
-/** Cuota de un plan de crédito */
-export interface CreditInstallment {
-  number: number;
-  dueDate: string;
-  amount: number;
-  paid: boolean;
-  paidDate?: string;
-  paidAmount?: number;
-}
-
-/** Plan de crédito para pagos a plazos */
-export interface PaymentCreditPlan {
-  totalInstallments: number;
-  installments: CreditInstallment[];
-  initialPayment: number;
-  remainingBalance: number;
-}
-
-/** Input para registrar un pago */
-export interface RegisterPaymentInput {
+/**
+ * Payload para registrar un pago. `amount` es el monto bruto; `discount`
+ * (opcional) se resta para obtener el neto que debe cuadrar con los splits.
+ */
+export interface PaymentInput {
   studentId: string;
-  date: string;
-  plan: MembershipPlan;
-  category: 'mensualidad' | 'personalizada';
+  date: string; // ISO YYYY-MM-DD
+  amount: number;
   method: PaymentMethod;
   splits?: PaymentSplit[];
   status: 'paid' | 'upgrade' | 'credit';
+  planName: string;
+  category: 'mensualidad' | 'personalizada';
   discount?: number;
   discountReason?: string;
-  creditPlan?: PaymentCreditPlan;
+  /** Plan de cuotas para pagos a crédito (status 'credit'). */
+  creditPlan?: CreditPlan;
+  /** Abono inicial para pagos a crédito. */
+  initialPayment?: number;
 }
 
-/** Resultado de un pago registrado */
-export interface PaymentResult {
+/** Resultado del registro de un pago. */
+export interface RegisterPaymentResult {
   payment: Payment;
   receiptNo: string;
-  updatedStudent: Student;
+  /** Nueva fecha de vencimiento calculada (si aplica extensión). */
+  newSubscriptionEndDate?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Service
-// ---------------------------------------------------------------------------
+// =============================================================================
+// Helpers de fecha (parseo seguro de ISO YYYY-MM-DD en UTC)
+// =============================================================================
+
+/** Parsea un ISO `YYYY-MM-DD` a un Date en UTC (medianoche). */
+function parseIsoDate(iso: string): Date {
+  const datePart = iso.slice(0, 10);
+  const [y, m, d] = datePart.split('-').map(Number);
+  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+}
+
+/** Formatea un Date a ISO `YYYY-MM-DD` usando componentes UTC. */
+function toIsoDate(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Suma un mes calendario a una fecha, con clamping del día al último día del
+ * mes destino (ej. 31 ene + 1 mes → 28/29 feb). Trabaja en UTC.
+ */
+function addOneMonth(date: Date): Date {
+  const day = date.getUTCDate();
+  const result = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+  // Último día del mes destino.
+  const lastDay = new Date(
+    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+}
+
+// =============================================================================
+// Lógica pura (exportada para tests y reutilización)
+// =============================================================================
+
+/**
+ * Calcula la nueva fecha de vencimiento tras un pago.
+ *
+ * - status 'paid' y plan NO single → `max(oldEnd, paymentDate) + 1 mes`.
+ * - status 'upgrade' o plan single → sin cambio (retorna oldEnd).
+ *
+ * Requirements: 5.1, 5.2, 4.5
+ */
+export function computeSubscriptionEndDate(
+  oldEndDate: string,
+  paymentDate: string,
+  status: 'paid' | 'upgrade' | 'credit',
+  plan?: Pick<MembershipPlan, 'single'>,
+): string {
+  const isSingle = plan?.single === true;
+
+  // Solo 'paid' con plan no-single extiende el vencimiento.
+  if (status !== 'paid' || isSingle) {
+    return oldEndDate;
+  }
+
+  const oldEnd = parseIsoDate(oldEndDate);
+  const payDate = parseIsoDate(paymentDate);
+  const base = oldEnd.getTime() >= payDate.getTime() ? oldEnd : payDate;
+  return toIsoDate(addOneMonth(base));
+}
+
+/**
+ * Calcula el monto neto de un pago (bruto menos descuento, nunca negativo).
+ */
+export function computeNetAmount(amount: number, discount = 0): number {
+  return amount - discount;
+}
+
+/**
+ * Valida que la suma de los splits iguale el monto neto (amount - discount).
+ * Retorna un resultado discriminado. Si no hay splits, es válido (pago simple).
+ *
+ * Requirements: 5.6
+ */
+export function validateSplits(
+  amount: number,
+  splits: PaymentSplit[] | undefined,
+  discount = 0,
+): ServiceResult<number> {
+  const net = computeNetAmount(amount, discount);
+
+  if (!splits || splits.length === 0) {
+    return { success: true, data: net };
+  }
+
+  const sum = splits.reduce((acc, s) => acc + s.amount, 0);
+
+  if (sum !== net) {
+    return {
+      success: false,
+      error: `La suma de los pagos divididos (${sum}) no coincide con el monto a pagar (${net}).`,
+    };
+  }
+
+  return { success: true, data: net };
+}
+
+/** Formatea un número de secuencia como comprobante `GOP-XXXX`. */
+export function formatReceiptNo(seq: number): string {
+  return `GOP-${String(seq).padStart(RECEIPT_PAD, '0')}`;
+}
+
+// =============================================================================
+// Servicio
+// =============================================================================
 
 export class PaymentService {
-  private storageService: StorageService;
+  private storagePromise: Promise<StorageService>;
 
-  constructor(storageService: StorageService) {
-    this.storageService = storageService;
+  constructor(storage?: StorageService) {
+    this.storagePromise = storage ? Promise.resolve(storage) : getStorageService();
   }
 
-  // ---------------------------------------------------------------------------
-  // Secuencia de comprobantes
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Genera el siguiente número de comprobante en formato GOP-XXXX.
-   * La secuencia es estrictamente creciente y persiste en storage.
-   *
-   * Requirement 5.7: Secuencia única y creciente de comprobantes.
-   */
-  async getNextReceiptNumber(): Promise<string> {
-    const current = await this.storageService.get<number>(RECEIPT_SEQ_KEY);
-    const next = (current ?? 0) + 1;
-    await this.storageService.set<number>(RECEIPT_SEQ_KEY, next);
-    return PaymentService.formatReceiptNumber(next);
+  private async storage(): Promise<StorageService> {
+    return this.storagePromise;
   }
 
   /**
-   * Retorna el último número de comprobante generado (sin incrementar).
+   * Genera el siguiente número de comprobante `GOP-XXXX`, leyendo e
+   * incrementando el `seq` del AppMeta persistido.
+   *
+   * Requirements: 5.5, 2.7
    */
-  async getCurrentSequence(): Promise<number> {
-    const current = await this.storageService.get<number>(RECEIPT_SEQ_KEY);
-    return current ?? 0;
+  async generateReceiptNo(): Promise<string> {
+    const storage = await this.storage();
+    const meta = (await storage.get<AppMeta>(META_KEY)) ?? { seq: 1 };
+    const receiptNo = formatReceiptNo(meta.seq);
+    await storage.set<AppMeta>(META_KEY, { ...meta, seq: meta.seq + 1 });
+    return receiptNo;
   }
 
   /**
-   * Formatea un número de secuencia como GOP-XXXX con zero-padding a 4 dígitos.
+   * Registra un pago: valida splits, genera comprobante y persiste el pago.
+   * Retorna el pago creado, el número de comprobante y (si aplica) la nueva
+   * fecha de vencimiento calculada.
+   *
+   * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7
    */
-  static formatReceiptNumber(seq: number): string {
-    return `GOP-${seq.toString().padStart(4, '0')}`;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Registro de pagos
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Registra un pago de mensualidad para un estudiante.
-   *
-   * Comportamiento según status:
-   * - 'paid': Extiende subscriptionEndDate en max(oldEnd, paymentDate) + 1 mes.
-   *   Excepción: planes con single:true NO extienden la fecha.
-   * - 'upgrade': Actualiza el plan del estudiante sin modificar la fecha.
-   * - 'credit': Registra pago a crédito con plan de cuotas.
-   *
-   * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
-   *
-   * @throws Error si el estudiante no existe.
-   * @throws Error si los splits no suman el total.
-   */
-  async registerPayment(input: RegisterPaymentInput): Promise<PaymentResult> {
-    // 1. Leer el estudiante
-    const students = await this.storageService.get<Student[]>(STUDENTS_KEY);
-    if (!students) {
-      throw new Error('No hay estudiantes registrados.');
-    }
-
-    const studentIdx = students.findIndex((s) => s.id === input.studentId);
-    if (studentIdx === -1) {
-      throw new Error(`Estudiante con ID "${input.studentId}" no encontrado.`);
-    }
-
-    const student = { ...students[studentIdx] };
-
-    // 2. Calcular monto con descuento
+  async registerPayment(
+    input: PaymentInput,
+    context?: {
+      /** Fecha de vencimiento actual del estudiante, para calcular la extensión. */
+      currentSubscriptionEndDate?: string;
+      /** Plan asociado, para detectar `single`. */
+      plan?: Pick<MembershipPlan, 'single'>;
+    },
+  ): Promise<ServiceResult<RegisterPaymentResult>> {
     const discount = input.discount ?? 0;
-    const totalAmount = input.plan.price - discount;
 
-    // 3. Validar split payments
-    if (input.splits && input.splits.length > 0) {
-      PaymentService.validateSplits(input.splits, totalAmount);
+    // Validación básica de montos.
+    if (input.amount < 0 || discount < 0) {
+      return { success: false, error: 'El monto y el descuento no pueden ser negativos.' };
     }
 
-    // 4. Generar número de comprobante
-    const receiptNo = await this.getNextReceiptNumber();
+    // Validación de splits (Req 5.6).
+    const splitCheck = validateSplits(input.amount, input.splits, discount);
+    if (!splitCheck.success) {
+      return { success: false, error: splitCheck.error };
+    }
 
-    // 5. Crear el registro de pago
+    // Número de comprobante (Req 5.5).
+    const receiptNo = await this.generateReceiptNo();
+
     const payment: Payment = {
       id: crypto.randomUUID(),
       date: input.date,
-      amount: totalAmount,
+      amount: input.amount,
       method: input.method,
-      splits: input.splits && input.splits.length > 0 ? input.splits : undefined,
+      splits: input.splits,
       status: input.status,
-      planName: input.plan.name,
+      planName: input.planName,
       category: input.category,
       discount,
       discountReason: input.discountReason ?? '',
       receiptNo,
     };
 
-    // 6. Actualizar estudiante según status del pago
-    student.payments = [...(student.payments ?? []), payment];
-    student.planName = input.plan.name;
-    student.planId = input.plan.id;
-    student.planCategory = input.category;
-    student.monthlyFee = input.plan.price;
-
-    if (input.status === 'paid') {
-      // Extender subscriptionEndDate: max(oldEnd, payDate) + 1 mes
-      // Excepción: planes single no extienden
-      student.subscriptionEndDate = MembershipService.calculateNewEndDate(
-        student.subscriptionEndDate,
+    // Cálculo de extensión de vencimiento (Req 5.1, 5.2).
+    let newSubscriptionEndDate: string | undefined;
+    if (context?.currentSubscriptionEndDate) {
+      newSubscriptionEndDate = computeSubscriptionEndDate(
+        context.currentSubscriptionEndDate,
         input.date,
-        input.plan,
+        input.status,
+        context.plan,
       );
     }
-    // 'upgrade': no modificamos subscriptionEndDate
-    // 'credit': no modificamos subscriptionEndDate hasta pago completo
-    // (los abonos se registran por separado)
 
-    // 7. Persistir cambios
-    students[studentIdx] = student;
-    await this.storageService.set<Student[]>(STUDENTS_KEY, students);
+    // Persistencia del pago.
+    const storage = await this.storage();
+    const payments = (await storage.get<Payment[]>(PAYMENTS_KEY)) ?? [];
+    payments.push(payment);
+    await storage.set<Payment[]>(PAYMENTS_KEY, payments);
 
-    return { payment, receiptNo, updatedStudent: student };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Pagos a crédito - Abonos
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Registra un abono a un pago a crédito existente.
-   * Actualiza el saldo pendiente y marca cuotas como pagadas según corresponda.
-   *
-   * @param studentId ID del estudiante.
-   * @param paymentId ID del pago original a crédito.
-   * @param amount Monto del abono.
-   * @param method Método de pago del abono.
-   * @param date Fecha del abono.
-   */
-  async registerInstallmentPayment(
-    studentId: string,
-    paymentId: string,
-    amount: number,
-    method: PaymentMethod,
-    date: string,
-  ): Promise<Payment | null> {
-    const students = await this.storageService.get<Student[]>(STUDENTS_KEY);
-    if (!students) return null;
-
-    const studentIdx = students.findIndex((s) => s.id === studentId);
-    if (studentIdx === -1) return null;
-
-    const student = { ...students[studentIdx] };
-    const paymentIdx = student.payments.findIndex((p) => p.id === paymentId);
-    if (paymentIdx === -1) return null;
-
-    const originalPayment = student.payments[paymentIdx];
-    if (originalPayment.status !== 'credit') return null;
-
-    // Crear registro de abono como un pago vinculado
-    const installmentPayment: Payment = {
-      id: crypto.randomUUID(),
-      date,
-      amount,
-      method,
-      status: 'paid',
-      planName: originalPayment.planName,
-      category: originalPayment.category,
-      discount: 0,
-      discountReason: '',
-      receiptNo: await this.getNextReceiptNumber(),
+    return {
+      success: true,
+      data: { payment, receiptNo, newSubscriptionEndDate },
     };
-
-    student.payments = [...student.payments, installmentPayment];
-    students[studentIdx] = student;
-    await this.storageService.set<Student[]>(STUDENTS_KEY, students);
-
-    return installmentPayment;
   }
 
-  // ---------------------------------------------------------------------------
-  // Consultas
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Retorna el historial de pagos de un estudiante.
-   */
-  async getPaymentHistory(studentId: string): Promise<Payment[]> {
-    const students = await this.storageService.get<Student[]>(STUDENTS_KEY);
-    if (!students) return [];
-
-    const student = students.find((s) => s.id === studentId);
-    if (!student) return [];
-
-    return student.payments ?? [];
-  }
-
-  /**
-   * Retorna todos los pagos de todos los estudiantes con la información del estudiante.
-   */
-  async getAllPayments(): Promise<Array<Payment & { studentId: string; studentName: string }>> {
-    const students = await this.storageService.get<Student[]>(STUDENTS_KEY);
-    if (!students) return [];
-
-    const allPayments: Array<Payment & { studentId: string; studentName: string }> = [];
-
-    for (const student of students) {
-      if (!student.payments) continue;
-      for (const payment of student.payments) {
-        allPayments.push({
-          ...payment,
-          studentId: student.id,
-          studentName: `${student.firstName} ${student.lastName}`,
-        });
-      }
-    }
-
-    // Ordenar por fecha descendente
-    allPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return allPayments;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Validaciones estáticas
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Valida que la suma de los splits sea exactamente igual al total.
-   *
-   * Requirement 5.5: Los pagos divididos solo son aceptados si sum(splits) === total.
-   *
-   * @throws Error si la suma no coincide con el total.
-   */
-  static validateSplits(splits: PaymentSplit[], totalAmount: number): void {
-    const splitsSum = splits.reduce((sum, s) => sum + s.amount, 0);
-    // Tolerancia de centavo por precisión de punto flotante
-    if (Math.abs(splitsSum - totalAmount) > 0.01) {
-      throw new Error(
-        `La suma de los pagos divididos ($${splitsSum.toLocaleString()}) no coincide con el total ($${totalAmount.toLocaleString()}).`,
-      );
-    }
-  }
-
-  /**
-   * Calcula la nueva fecha de vencimiento según las reglas de negocio.
-   * Delegación al MembershipService.calculateNewEndDate para mantener cohesión.
-   */
-  static calculateNewEndDate(
-    currentEndDate: string,
-    paymentDate: string,
-    plan: MembershipPlan,
-  ): string {
-    return MembershipService.calculateNewEndDate(currentEndDate, paymentDate, plan);
+  /** Retorna todos los pagos persistidos. */
+  async getAll(): Promise<Payment[]> {
+    const storage = await this.storage();
+    return (await storage.get<Payment[]>(PAYMENTS_KEY)) ?? [];
   }
 }
+
+/** Instancia singleton por conveniencia (usa el StorageService singleton). */
+export const paymentService = new PaymentService();
