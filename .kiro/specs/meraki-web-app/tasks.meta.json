@@ -8,23 +8,23 @@
         "timestamp": 1787597076906
       }
     ],
-    "25.1 Implementar SettingsPage y componentes": [
+    "23.3 Implementar componentes de comunicación": [
       {
-        "executionId": "2b5d8e70-6de4-48e9-9e08-647183ecb9a8",
-        "chatSessionId": "sess_23a984bf-16d7-4248-a5cf-897972969588",
-        "timestamp": 1787610529624
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787601639583
       },
       {
-        "executionId": "2b5d8e70-6de4-48e9-9e08-647183ecb9a8",
-        "chatSessionId": "sess_23a984bf-16d7-4248-a5cf-897972969588",
-        "timestamp": 1787611236768
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787607576977
       }
     ],
-    "25. Configuración y personalización": [
+    "23. Módulo de comunicación multicanal": [
       {
-        "executionId": "2b5d8e70-6de4-48e9-9e08-647183ecb9a8",
-        "chatSessionId": "sess_23a984bf-16d7-4248-a5cf-897972969588",
-        "timestamp": 1787611236856
+        "executionId": "f0561905-f8ee-4c03-b488-d6409dabe0e3",
+        "chatSessionId": "sess_9d4618e5-e86c-4727-b736-c6ab0e44156b",
+        "timestamp": 1787607577093
       }
     ]
   }

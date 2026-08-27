@@ -423,7 +423,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Crear `src/components/consent/ConsentPDF.tsx` para generación de PDF del consentimiento firmado
     - _Requirements: 6.1, 6.4, 6.6_
 
-- [ ] 23. Módulo de comunicación multicanal
+- [x] 23. Módulo de comunicación multicanal
   - [x] 23.1 Implementar CommunicationService e interfaz de canales
     - Crear `src/services/communication/ChannelInterface.ts` con interfaz CommunicationChannel
     - Crear `src/services/communication/EmailChannel.ts` (Fase 1) — envío por email con plantilla
@@ -443,7 +443,7 @@ Refactorización del sistema monolítico GymOps (~3280 líneas en un archivo HTM
     - Generar phone + message, verificar formato URL = `https://wa.me/{phone}?text={encoded}`
     - **Validates: Requirements 12.5, 12.7, 12.10, 12.13, 12.14, 12.15, 12.16**
 
-  - [ ] 23.3 Implementar componentes de comunicación
+  - [x] 23.3 Implementar componentes de comunicación
     - Crear `src/hooks/useCommunication.ts`
     - Crear `src/pages/CommunicationPage.tsx` con gestión de plantillas y envío
     - Crear `src/components/communication/TemplateEditor.tsx` para editar plantillas
