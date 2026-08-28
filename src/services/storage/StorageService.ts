@@ -4,6 +4,9 @@
  * Abstrae el mecanismo de almacenamiento subyacente (IndexedDB, localStorage, API).
  * Implementa dual-write (IndexedDB + localStorage) cuando IndexedDB está disponible,
  * con fallback transparente a localStorage si no lo está.
+ *
+ * En modo E2E (VITE_E2E_STORAGE=localStorage), usa exclusivamente localStorage
+ * para que los tests de Playwright puedan sembrar datos de forma determinista.
  */
 
 import { IndexedDBAdapter, isIndexedDBAvailable } from './IndexedDBAdapter';
@@ -103,12 +106,22 @@ let instance: StorageService | null = null;
  * Creates and initializes the StorageService singleton.
  * Uses IndexedDB as primary with localStorage as secondary (dual-write).
  * Falls back to localStorage-only if IndexedDB is unavailable.
+ *
+ * In E2E mode (VITE_E2E_STORAGE=localStorage), uses localStorage only.
  */
 export async function createStorageService(): Promise<StorageService> {
   if (instance) return instance;
 
   const localAdapter = new LocalStorageAdapter();
   await localAdapter.init();
+
+  // E2E mode: use localStorage only for deterministic test data seeding
+  const useLocalStorageOnly = import.meta.env.VITE_E2E_STORAGE === 'localStorage';
+
+  if (useLocalStorageOnly) {
+    instance = new StorageServiceImpl(localAdapter, null);
+    return instance;
+  }
 
   const idbAvailable = await isIndexedDBAvailable();
 
