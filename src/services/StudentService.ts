@@ -16,7 +16,7 @@ import type { Student } from '../types/student';
 import { getStorageService } from './storage/StorageService';
 
 /** Clave de almacenamiento donde persiste la colección de estudiantes. */
-const STORAGE_KEY = 'gymops_students';
+const STORAGE_KEY = 'students';
 
 /** Milisegundos en un día — usado para cálculos de fechas. */
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
