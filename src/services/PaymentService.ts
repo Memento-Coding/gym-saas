@@ -14,7 +14,21 @@ import { getStorageService, type StorageService } from '@/services/storage/Stora
 import type { Payment, PaymentMethod, PaymentSplit } from '@/types/payment';
 import type { MembershipPlan } from '@/types/membership';
 import type { AppMeta } from '@/types/settings';
-import type { CreditPlan } from '@/types/sale';
+import type { CreditInstallment, CreditPlan } from '@/types/sale';
+
+/**
+ * Plan de crédito asociado a un pago (Req 5.7). Extiende el CreditPlan de ventas
+ * con el abono inicial y el saldo pendiente propios del pago de mensualidad.
+ */
+export interface PaymentCreditPlan {
+  type: 'single' | 'three_installments';
+  /** Abono inicial aportado al momento del pago. */
+  initialPayment: number;
+  /** Saldo pendiente tras el abono inicial. */
+  remainingBalance: number;
+  /** Cuotas generadas con sus fechas y montos. */
+  installments: CreditInstallment[];
+}
 
 /** Clave de storage para el metadato de secuencia de comprobantes. */
 const META_KEY = 'meta';
@@ -44,7 +58,7 @@ export interface PaymentInput {
   discount?: number;
   discountReason?: string;
   /** Plan de cuotas para pagos a crédito (status 'credit'). */
-  creditPlan?: CreditPlan;
+  creditPlan?: CreditPlan | PaymentCreditPlan;
   /** Abono inicial para pagos a crédito. */
   initialPayment?: number;
 }
@@ -217,7 +231,7 @@ export class PaymentService {
 
     // Validación de splits (Req 5.6).
     const splitCheck = validateSplits(input.amount, input.splits, discount);
-    if (!splitCheck.success) {
+    if (splitCheck.success === false) {
       return { success: false, error: splitCheck.error };
     }
 
