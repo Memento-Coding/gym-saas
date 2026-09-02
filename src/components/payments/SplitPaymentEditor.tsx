@@ -1,19 +1,20 @@
 /**
- * SplitPaymentEditor — Editor visual para dividir el monto de un pago
- * entre múltiples métodos de pago.
+ * SplitPaymentEditor — Editor de pagos divididos entre varios métodos.
  *
- * Funcionalidades:
- * - Agregar/eliminar líneas de split.
- * - Seleccionar método de pago por línea.
- * - Validación en tiempo real: la suma de los montos debe igualar el total.
- * - Indicador visual de diferencia (faltante o excedente).
+ * Se muestra cuando el usuario activa el checkbox "Dividir pago". Permite
+ * agregar/quitar filas [Método] - [Monto] y valida EN VIVO que la suma de los
+ * montos iguale el total a pagar (Req 5.6).
  *
- * Requirements: 5.5
+ * Componente controlado: el estado de los splits vive en el formulario padre.
+ *
+ * Requirements: 5.6
  */
 
-import { useCallback, useMemo } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -21,173 +22,148 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import type { PaymentMethod, PaymentSplit } from '@/types/payment';
 
-// ---------------------------------------------------------------------------
-// Tipos
-// ---------------------------------------------------------------------------
+const METHODS: PaymentMethod[] = ['Efectivo', 'Nequi', 'Banco'];
 
-interface SplitPaymentEditorProps {
-  totalAmount: number;
-  splits: PaymentSplit[];
-  onChange: (splits: PaymentSplit[]) => void;
+function formatCOP(amount: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
-// ---------------------------------------------------------------------------
-// Constantes
-// ---------------------------------------------------------------------------
-
-const METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'Efectivo', label: 'Efectivo' },
-  { value: 'Nequi', label: 'Nequi' },
-  { value: 'Banco', label: 'Banco' },
-];
-
-// ---------------------------------------------------------------------------
-// Componente
-// ---------------------------------------------------------------------------
+interface SplitPaymentEditorProps {
+  /** Total neto a pagar (amount - discount) que los splits deben igualar. */
+  total: number;
+  /** ¿Está activo el modo dividir? */
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  /** Filas actuales de splits. */
+  splits: PaymentSplit[];
+  onSplitsChange: (splits: PaymentSplit[]) => void;
+}
 
 export function SplitPaymentEditor({
-  totalAmount,
+  total,
+  enabled,
+  onEnabledChange,
   splits,
-  onChange,
+  onSplitsChange,
 }: SplitPaymentEditorProps) {
-  // Suma actual de los splits
-  const currentSum = useMemo(
-    () => splits.reduce((sum, s) => sum + s.amount, 0),
-    [splits],
-  );
+  const sum = splits.reduce((acc, s) => acc + (Number.isFinite(s.amount) ? s.amount : 0), 0);
+  const difference = total - sum;
+  const isBalanced = enabled ? sum === total : true;
 
-  const difference = totalAmount - currentSum;
-  const isValid = Math.abs(difference) < 1; // tolerancia de $1
+  const addRow = () => {
+    onSplitsChange([...splits, { method: 'Efectivo', amount: 0 }]);
+  };
 
-  // Agregar una nueva línea de split
-  const addSplit = useCallback(() => {
-    const remaining = Math.max(0, totalAmount - currentSum);
-    const newSplit: PaymentSplit = {
-      method: 'Efectivo',
-      amount: remaining,
-    };
-    onChange([...splits, newSplit]);
-  }, [splits, onChange, totalAmount, currentSum]);
+  const removeRow = (index: number) => {
+    onSplitsChange(splits.filter((_, i) => i !== index));
+  };
 
-  // Eliminar una línea de split
-  const removeSplit = useCallback(
-    (index: number) => {
-      const next = splits.filter((_, i) => i !== index);
-      onChange(next);
-    },
-    [splits, onChange],
-  );
+  const updateRow = (index: number, patch: Partial<PaymentSplit>) => {
+    onSplitsChange(splits.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  };
 
-  // Actualizar el método de una línea
-  const updateMethod = useCallback(
-    (index: number, method: PaymentMethod) => {
-      const next = splits.map((s, i) => (i === index ? { ...s, method } : s));
-      onChange(next);
-    },
-    [splits, onChange],
-  );
-
-  // Actualizar el monto de una línea
-  const updateAmount = useCallback(
-    (index: number, amount: number) => {
-      const next = splits.map((s, i) => (i === index ? { ...s, amount } : s));
-      onChange(next);
-    },
-    [splits, onChange],
-  );
+  const handleToggle = (checked: boolean) => {
+    onEnabledChange(checked);
+    // Al activar sin filas, sembramos una fila inicial con el total.
+    if (checked && splits.length === 0) {
+      onSplitsChange([{ method: 'Efectivo', amount: total }]);
+    }
+  };
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-foreground">Pago dividido</h4>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addSplit}
-        >
-          + Agregar método
-        </Button>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="split-toggle"
+          checked={enabled}
+          onCheckedChange={(v) => handleToggle(v === true)}
+        />
+        <Label htmlFor="split-toggle" className="cursor-pointer">
+          Dividir pago entre varios métodos
+        </Label>
       </div>
 
-      {/* Lista de splits */}
-      {splits.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          Agrega al menos dos métodos de pago para dividir el monto.
-        </p>
-      )}
+      {enabled && (
+        <div className="flex flex-col gap-3 rounded-lg ring-1 ring-foreground/10 p-3">
+          {splits.map((split, index) => (
+            <div key={index} className="flex items-end gap-2">
+              <div className="grid flex-1 gap-1.5">
+                <Label className="text-xs text-muted-foreground">Método</Label>
+                <Select
+                  value={split.method}
+                  onValueChange={(v) => updateRow(index, { method: v as PaymentMethod })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {METHODS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      <div className="space-y-2">
-        {splits.map((split, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-2"
-          >
-            {/* Método */}
-            <Select
-              value={split.method}
-              onValueChange={(val) => updateMethod(index, val as PaymentMethod)}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {METHODS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="grid flex-1 gap-1.5">
+                <Label className="text-xs text-muted-foreground">Monto</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={Number.isFinite(split.amount) ? split.amount : ''}
+                  onChange={(e) =>
+                    updateRow(index, { amount: e.target.value === '' ? 0 : Number(e.target.value) })
+                  }
+                />
+              </div>
 
-            {/* Monto */}
-            <Input
-              type="number"
-              min="0"
-              step="1000"
-              value={split.amount || ''}
-              onChange={(e) => updateAmount(index, Number(e.target.value) || 0)}
-              placeholder="$0"
-              className="flex-1"
-            />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Quitar fila"
+                onClick={() => removeRow(index)}
+                disabled={splits.length <= 1}
+              >
+                <Trash2 className="size-4 text-error-500" />
+              </Button>
+            </div>
+          ))}
 
-            {/* Eliminar */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removeSplit(index)}
-              className="text-destructive hover:text-destructive/80 shrink-0"
-              aria-label={`Eliminar split ${index + 1}`}
-            >
-              ✕
+          <div className="flex items-center justify-between">
+            <Button type="button" variant="outline" size="sm" onClick={addRow}>
+              <Plus className="size-4" />
+              Agregar método
             </Button>
-          </div>
-        ))}
-      </div>
 
-      {/* Indicador de validación */}
-      {splits.length > 0 && (
-        <div
-          className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${
-            isValid
-              ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
-          }`}
-        >
-          <span>
-            Suma: ${currentSum.toLocaleString('es-CO')} / ${totalAmount.toLocaleString('es-CO')}
-          </span>
-          {!isValid && (
-            <span className="font-medium">
+            {/* Validación en vivo de la suma vs total (Req 5.6). */}
+            <div className="text-sm">
+              <span className="text-muted-foreground">Suma: </span>
+              <span
+                className={cn('font-medium', isBalanced ? 'text-success-700' : 'text-error-700')}
+              >
+                {formatCOP(sum)}
+              </span>
+              <span className="text-muted-foreground"> / {formatCOP(total)}</span>
+            </div>
+          </div>
+
+          {!isBalanced && (
+            <p role="alert" className="text-sm text-error-700">
               {difference > 0
-                ? `Faltan $${difference.toLocaleString('es-CO')}`
-                : `Excedente $${Math.abs(difference).toLocaleString('es-CO')}`}
-            </span>
+                ? `Faltan ${formatCOP(difference)} por asignar.`
+                : `Se excede en ${formatCOP(Math.abs(difference))}.`}
+            </p>
           )}
-          {isValid && <span className="font-medium">Correcto</span>}
         </div>
       )}
     </div>

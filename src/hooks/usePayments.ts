@@ -1,202 +1,155 @@
 /**
- * usePayments — Custom hook para el módulo de pagos de mensualidad.
+ * usePayments — Custom hook para el módulo de pagos.
  *
- * Envuelve PaymentService y ReceiptService, gestionando:
- * - Registro de pagos (con extensión de fecha, upgrade, crédito).
- * - Historial de pagos por estudiante o global.
- * - Generación y descarga de comprobantes PDF.
- * - Estado de carga y errores.
+ * Envuelve el PaymentService, gestiona estado (historial, loading, error) y,
+ * al registrar un pago exitosamente, dispara la descarga del comprobante PDF
+ * mediante ReceiptService.
  *
- * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7 | 14.1, 14.2, 14.3, 14.4
+ * Requirements: 5.1, 5.3, 5.4, 5.5, 5.6, 5.7, 14.1
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
 import {
   PaymentService,
-  type RegisterPaymentInput,
-  type PaymentResult,
+  type PaymentInput,
+  type RegisterPaymentResult,
+  type ServiceResult,
 } from '@/services/PaymentService';
-import { ReceiptService, type ReceiptClientInfo } from '@/services/ReceiptService';
-import type { Payment, PaymentMethod } from '@/types/payment';
-import type { Student } from '@/types/student';
+import {
+  ReceiptService,
+  type ReceiptClientInfo,
+} from '@/services/ReceiptService';
+import type { Payment } from '@/types/payment';
 
-export interface PaymentWithStudent extends Payment {
-  studentId: string;
-  studentName: string;
+interface RegisterOptions {
+  /** Datos del cliente para el comprobante (Req 14.1). */
+  client: ReceiptClientInfo;
+  /** Contexto para el cálculo de extensión de vencimiento. */
+  currentSubscriptionEndDate?: string;
+  plan?: { single?: boolean };
+  /** Si false, no se descarga el comprobante automáticamente. Por defecto true. */
+  downloadReceipt?: boolean;
+  /** Personalización de marca para el comprobante. */
+  academyName?: string;
+  academyLogo?: string;
 }
 
-export interface UsePaymentsReturn {
-  /** Estado de carga */
+interface UsePaymentsReturn {
+  payments: Payment[];
   loading: boolean;
-  /** Último error */
   error: string | null;
-  /** Registrar un pago de mensualidad */
-  registerPayment: (input: RegisterPaymentInput) => Promise<PaymentResult | null>;
-  /** Obtener historial de pagos de un estudiante */
-  getPaymentHistory: (studentId: string) => Promise<Payment[]>;
-  /** Obtener todos los pagos de todos los estudiantes */
-  getAllPayments: () => Promise<PaymentWithStudent[]>;
-  /** Registrar abono a pago a crédito */
-  registerInstallmentPayment: (
-    studentId: string,
-    paymentId: string,
-    amount: number,
-    method: PaymentMethod,
-    date: string,
-  ) => Promise<Payment | null>;
-  /** Generar y descargar comprobante PDF para un pago */
-  downloadReceipt: (payment: Payment, student: Student) => string;
-  /** Generar Blob del comprobante (para preview) */
-  getReceiptBlob: (payment: Payment, student: Student) => Blob;
+  refreshData: () => Promise<void>;
+  /** Historial de pagos filtrado (por ahora, todos; el vínculo por estudiante se hará en Fase 2). */
+  registerPayment: (
+    input: PaymentInput,
+    options: RegisterOptions,
+  ) => Promise<ServiceResult<RegisterPaymentResult>>;
+  /** Re-descarga el comprobante PDF de un pago existente. */
+  downloadReceipt: (payment: Payment, client: ReceiptClientInfo) => void;
 }
 
 export function usePayments(): UsePaymentsReturn {
-  const [loading, setLoading] = useState(false);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [service, setService] = useState<PaymentService | null>(null);
 
-  // Inicializar servicio
+  // Inicializa el servicio una sola vez.
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
       try {
         const storage = await getStorageService();
-        const paymentService = new PaymentService(storage);
-        if (!cancelled) {
-          setService(paymentService);
-        }
+        const paymentSvc = new PaymentService(storage);
+        if (!cancelled) setService(paymentSvc);
       } catch {
         if (!cancelled) {
           setError('Error al inicializar el servicio de pagos.');
+          setLoading(false);
         }
       }
     }
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Registrar pago
-  const registerPayment = useCallback(
-    async (input: RegisterPaymentInput): Promise<PaymentResult | null> => {
-      if (!service) return null;
-      setLoading(true);
-      setError(null);
-
-      try {
-        const result = await service.registerPayment(input);
-        return result;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al registrar el pago.';
-        setError(message);
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [service],
-  );
-
-  // Historial de pagos de un estudiante
-  const getPaymentHistory = useCallback(
-    async (studentId: string): Promise<Payment[]> => {
-      if (!service) return [];
-      try {
-        return await service.getPaymentHistory(studentId);
-      } catch {
-        setError('Error al obtener el historial de pagos.');
-        return [];
-      }
-    },
-    [service],
-  );
-
-  // Todos los pagos
-  const getAllPayments = useCallback(async (): Promise<PaymentWithStudent[]> => {
-    if (!service) return [];
+  const refreshData = useCallback(async () => {
+    if (!service) return;
+    setLoading(true);
+    setError(null);
     try {
-      return await service.getAllPayments();
+      const data = await service.getAll();
+      setPayments(data);
     } catch {
-      setError('Error al obtener los pagos.');
-      return [];
+      setError('Error al cargar el historial de pagos.');
+    } finally {
+      setLoading(false);
     }
   }, [service]);
 
-  // Registrar abono a crédito
-  const registerInstallmentPayment = useCallback(
+  useEffect(() => {
+    if (service) refreshData();
+  }, [service, refreshData]);
+
+  const registerPayment = useCallback(
     async (
-      studentId: string,
-      paymentId: string,
-      amount: number,
-      method: PaymentMethod,
-      date: string,
-    ): Promise<Payment | null> => {
-      if (!service) return null;
-      setLoading(true);
+      input: PaymentInput,
+      options: RegisterOptions,
+    ): Promise<ServiceResult<RegisterPaymentResult>> => {
+      if (!service) {
+        return { success: false, error: 'El servicio de pagos no está listo.' };
+      }
       setError(null);
 
-      try {
-        const result = await service.registerInstallmentPayment(
-          studentId,
-          paymentId,
-          amount,
-          method,
-          date,
-        );
+      const result = await service.registerPayment(input, {
+        currentSubscriptionEndDate: options.currentSubscriptionEndDate,
+        plan: options.plan,
+      });
+
+      if (!result.success) {
+        setError(result.error);
         return result;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al registrar el abono.';
-        setError(message);
-        return null;
-      } finally {
-        setLoading(false);
       }
+
+      // Descarga del comprobante PDF al registrar con éxito (Req 14.1).
+      if (options.downloadReceipt !== false) {
+        try {
+          const receiptData = ReceiptService.fromPayment(
+            result.data.payment,
+            options.client,
+            undefined,
+            options.academyName,
+            options.academyLogo,
+          );
+          ReceiptService.generateAndDownload(receiptData);
+        } catch {
+          // No bloqueamos el registro si la generación del PDF falla.
+          setError('El pago se registró, pero no se pudo generar el comprobante.');
+        }
+      }
+
+      await refreshData();
+      return result;
     },
-    [service],
+    [service, refreshData],
   );
 
-  // Descargar comprobante PDF
-  const downloadReceipt = useCallback(
-    (payment: Payment, student: Student): string => {
-      const client: ReceiptClientInfo = {
-        name: `${student.firstName} ${student.lastName}`,
-        documentId: student.documentId,
-        phone: student.phone,
-        email: student.email,
-      };
-
-      const receiptData = ReceiptService.fromPayment(payment, client);
-      return ReceiptService.generateAndDownload(receiptData);
-    },
-    [],
-  );
-
-  // Obtener Blob del PDF (para previews)
-  const getReceiptBlob = useCallback(
-    (payment: Payment, student: Student): Blob => {
-      const client: ReceiptClientInfo = {
-        name: `${student.firstName} ${student.lastName}`,
-        documentId: student.documentId,
-        phone: student.phone,
-        email: student.email,
-      };
-
-      const receiptData = ReceiptService.fromPayment(payment, client);
-      return ReceiptService.generateBlob(receiptData);
-    },
-    [],
-  );
+  const downloadReceipt = useCallback((payment: Payment, client: ReceiptClientInfo) => {
+    const receiptData = ReceiptService.fromPayment(payment, client);
+    ReceiptService.generateAndDownload(receiptData);
+  }, []);
 
   return {
+    payments,
     loading,
     error,
+    refreshData,
     registerPayment,
-    getPaymentHistory,
-    getAllPayments,
-    registerInstallmentPayment,
     downloadReceipt,
-    getReceiptBlob,
   };
 }

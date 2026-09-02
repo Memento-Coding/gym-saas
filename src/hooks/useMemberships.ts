@@ -1,50 +1,44 @@
 /**
- * useMemberships — Custom hook para el módulo de membresías y planes.
+ * useMemberships — Custom hook para el módulo de membresías.
  *
- * Envuelve el MembershipService y gestiona estado reactivo para:
- * - Lista de planes grupales y personalizados.
- * - Edición de planes (nombre, precio).
- * - Consulta de planes por ID.
- * - Estado de carga y errores.
+ * Envuelve el MembershipService y expone el estado reactivo de los planes
+ * (grupales y personalizados), estados de carga y funciones de consulta/edición.
  *
- * Requirements: 4.1, 4.2, 4.3
+ * Requirements: 4.1, 4.2, 4.3, 4.4
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
-import { MembershipService, type UpdatePlanInput } from '@/services/MembershipService';
-import type { MembershipPlan, CostsConfig } from '@/types/membership';
+import {
+  MembershipService,
+  type UpdatePlanInput,
+} from '@/services/MembershipService';
+import type { MembershipPlan } from '@/types/membership';
 
-export interface UseMembershipsReturn {
-  /** Todos los planes (grupales + personalizados) */
-  allPlans: MembershipPlan[];
-  /** Planes grupales (mensualidad) */
+interface UseMembershipsReturn {
+  /** Planes grupales (mensualidad). */
   groupPlans: MembershipPlan[];
-  /** Planes de entrenamiento personalizado */
+  /** Planes de entrenamiento personalizado. */
   personalizedPlans: MembershipPlan[];
-  /** Configuración completa de costos */
-  costsConfig: CostsConfig | null;
-  /** Estado de carga */
+  /** Todos los planes combinados. */
+  allPlans: MembershipPlan[];
   loading: boolean;
-  /** Último error */
   error: string | null;
-  /** Recargar los planes desde storage */
-  reload: () => Promise<void>;
-  /** Actualizar nombre/precio de un plan */
-  updatePlan: (planId: string, changes: UpdatePlanInput) => Promise<MembershipPlan | null>;
-  /** Buscar plan por ID */
-  getPlanById: (planId: string) => Promise<{ plan: MembershipPlan; category: 'mensualidad' | 'personalizada' } | null>;
-  /** Restaurar planes a los valores por defecto */
-  resetToDefaults: () => Promise<void>;
+  refreshData: () => Promise<void>;
+  getPlanById: (
+    planId: string,
+  ) => { plan: MembershipPlan; category: 'mensualidad' | 'personalizada' } | null;
+  updatePlan: (planId: string, changes: UpdatePlanInput) => Promise<void>;
 }
 
 export function useMemberships(): UseMembershipsReturn {
-  const [costsConfig, setCostsConfig] = useState<CostsConfig | null>(null);
+  const [groupPlans, setGroupPlans] = useState<MembershipPlan[]>([]);
+  const [personalizedPlans, setPersonalizedPlans] = useState<MembershipPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [service, setService] = useState<MembershipService | null>(null);
 
-  // Inicializar servicio
+  // Inicializa el servicio una sola vez.
   useEffect(() => {
     let cancelled = false;
 
@@ -52,9 +46,7 @@ export function useMemberships(): UseMembershipsReturn {
       try {
         const storage = await getStorageService();
         const membershipService = new MembershipService(storage);
-        if (!cancelled) {
-          setService(membershipService);
-        }
+        if (!cancelled) setService(membershipService);
       } catch {
         if (!cancelled) {
           setError('Error al inicializar el servicio de membresías.');
@@ -64,19 +56,19 @@ export function useMemberships(): UseMembershipsReturn {
     }
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Cargar planes
-  const reload = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     if (!service) return;
-
     setLoading(true);
     setError(null);
-
     try {
       const config = await service.getCostsConfig();
-      setCostsConfig(config);
+      setGroupPlans(config.memberships);
+      setPersonalizedPlans(config.personalized);
     } catch {
       setError('Error al cargar los planes de membresía.');
     } finally {
@@ -84,81 +76,45 @@ export function useMemberships(): UseMembershipsReturn {
     }
   }, [service]);
 
-  // Cargar al inicializar el servicio
   useEffect(() => {
-    if (service) {
-      reload();
-    }
-  }, [service, reload]);
+    if (service) refreshData();
+  }, [service, refreshData]);
 
-  // Derivar listas de planes desde la config
-  const groupPlans = useMemo<MembershipPlan[]>(
-    () => costsConfig?.memberships ?? [],
-    [costsConfig],
-  );
-
-  const personalizedPlans = useMemo<MembershipPlan[]>(
-    () => costsConfig?.personalized ?? [],
-    [costsConfig],
-  );
-
-  const allPlans = useMemo<MembershipPlan[]>(
-    () => [...groupPlans, ...personalizedPlans],
+  // Búsqueda síncrona sobre el estado ya cargado (no toca storage).
+  const getPlanById = useCallback(
+    (planId: string) => {
+      const group = groupPlans.find((p) => p.id === planId);
+      if (group) return { plan: group, category: 'mensualidad' as const };
+      const personalized = personalizedPlans.find((p) => p.id === planId);
+      if (personalized) return { plan: personalized, category: 'personalizada' as const };
+      return null;
+    },
     [groupPlans, personalizedPlans],
   );
 
-  // Actualizar un plan
   const updatePlan = useCallback(
-    async (planId: string, changes: UpdatePlanInput): Promise<MembershipPlan | null> => {
-      if (!service) return null;
+    async (planId: string, changes: UpdatePlanInput) => {
+      if (!service) return;
       setError(null);
-
       try {
-        const updated = await service.updatePlan(planId, changes);
-        if (updated) {
-          await reload();
-        }
-        return updated;
+        await service.updatePlan(planId, changes);
+        await refreshData();
       } catch {
         setError('Error al actualizar el plan.');
-        return null;
+        throw new Error('Error al actualizar el plan.');
       }
     },
-    [service, reload],
+    [service, refreshData],
   );
-
-  // Buscar plan por ID
-  const getPlanById = useCallback(
-    async (planId: string) => {
-      if (!service) return null;
-      return service.getPlanById(planId);
-    },
-    [service],
-  );
-
-  // Restaurar planes por defecto
-  const resetToDefaults = useCallback(async () => {
-    if (!service) return;
-    setError(null);
-
-    try {
-      await service.resetToDefaults();
-      await reload();
-    } catch {
-      setError('Error al restaurar los planes por defecto.');
-    }
-  }, [service, reload]);
 
   return {
-    allPlans,
     groupPlans,
     personalizedPlans,
-    costsConfig,
+    allPlans: [...groupPlans, ...personalizedPlans],
     loading,
     error,
-    reload,
-    updatePlan,
+    refreshData,
     getPlanById,
-    resetToDefaults,
+    updatePlan,
   };
 }
