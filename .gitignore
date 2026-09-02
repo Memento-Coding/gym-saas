@@ -26,3 +26,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright BDD — archivos generados automáticamente por bddgen
+.features-gen/
+
+# Reportes de Playwright
+playwright-report/
+test-results/
