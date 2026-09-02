@@ -7,7 +7,22 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bdd:gen": "bddgen",
+    "bdd:test": "bddgen && playwright test",
+    "bdd:smoke": "bddgen && playwright test --grep @smoke",
+    "bdd:critico": "bddgen && playwright test --grep @critico",
+    "bdd:regresion": "bddgen && playwright test --grep @regresion",
+    "bdd:cortesias": "bddgen && playwright test --grep @cortesias",
+    "bdd:consentimiento": "bddgen && playwright test --grep @consentimiento",
+    "bdd:comunicacion": "bddgen && playwright test --grep @comunicacion",
+    "bdd:ajustes": "bddgen && playwright test --grep @ajustes",
+    "bdd:report": "playwright show-report",
+    "bdd:headed": "bddgen && playwright test --headed",
+    "bdd:slow": "bddgen && SLOW_STEP_MS=1 SLOW_MO=1500 playwright test --headed",
+    "bdd:veryslow": "bddgen && SLOW_STEP_MS=1 SLOW_MO=5000 playwright test --headed",
+    "bdd:ui": "bddgen && playwright test --ui",
+    "bdd:debug": "bddgen && playwright test --debug"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -34,6 +49,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^11.3.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "^10.4.1",
@@ -53,6 +69,7 @@
     "framer-motion": "^13.1.1",
     "globals": "^17.7.0",
     "jsdom": "^30.0.1",
+    "playwright-bdd": "^9.2.0",
     "react-router-dom": "^7.18.2",
     "tailwind-merge": "^3.6.0",
     "typescript": "~6.0.2",
