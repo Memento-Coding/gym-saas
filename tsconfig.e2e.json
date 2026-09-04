@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["ES2022"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "baseUrl": "."
+  },
+  "include": [
+    "e2e/**/*.ts",
+    ".features-gen/**/*.js",
+    "playwright.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src"
+  ]
+}

@@ -1,23 +1,17 @@
 /**
- * PaymentForm — Formulario responsivo para registrar pagos de mensualidad.
+ * PaymentForm — Formulario de registro de pago de mensualidad.
  *
- * Incluye:
- * - Selector de categoría (mensualidad / personalizada)
- * - Selector de plan (validado contra el catálogo dinámico real)
- * - Descuento (monto y razón) — sin negativos ni texto
- * - Selección de método de pago
- * - Estado del pago (pagado, upgrade, crédito)
- * - Opción de pago dividido (split)
- * - Fecha de vencimiento calculada automáticamente (read-only)
+ * Usa react-hook-form (sin zod, con reglas manuales) y componentes shadcn/ui.
+ * Permite seleccionar plan, método de pago principal, descuento (monto y razón),
+ * dividir el pago en varios métodos (SplitPaymentEditor) y, si el estado es
+ * 'credit', capturar cuota inicial y número de cuotas.
  *
- * Validación: react-hook-form + zodResolver alimentado por el catálogo
- * `src/utils/validation.ts` (STEERING_FORMS §1, §2, §4). El front NO es la
- * autoridad: PaymentService revalida montos, splits y recalcula el vencimiento.
+ * Componente presentacional: recibe `onSubmit` que construye el PaymentInput.
  *
- * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
+ * Requirements: 5.1, 5.3, 5.4, 5.6, 5.7
  */
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,75 +33,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { SplitPaymentEditor } from './SplitPaymentEditor';
-import type { MembershipPlan } from '@/types/membership';
-import type { PaymentMethod, PaymentSplit } from '@/types/payment';
-import type { Student } from '@/types/student';
+import { SplitPaymentEditor } from '@/components/payments/SplitPaymentEditor';
+import { useMemberships } from '@/hooks/useMemberships';
 import type { PaymentInput } from '@/services/PaymentService';
-import {
-  nonNegativeAmount,
-  isoDateSchema,
-  selectFromSource,
-  computeSubscriptionEndDate,
-  toIsoDateUTC,
-  messages,
-} from '@/utils/validation';
+import type { PaymentMethod, PaymentSplit } from '@/types/payment';
 
-// ---------------------------------------------------------------------------
-// Tipos
-// ---------------------------------------------------------------------------
+const METHODS: PaymentMethod[] = ['Efectivo', 'Nequi', 'Banco'];
 
-type PaymentCategory = 'mensualidad' | 'personalizada';
-type PaymentStatus = 'paid' | 'upgrade' | 'credit';
+const STATUS_OPTIONS: { value: PaymentInput['status']; label: string }[] = [
+  { value: 'paid', label: 'Pago de mensualidad' },
+  { value: 'upgrade', label: 'Mejora de plan' },
+  { value: 'credit', label: 'Crédito (cuotas)' },
+];
+
+const INSTALLMENT_OPTIONS = [
+  { value: 'single', label: 'Cuota única' },
+  { value: 'three_installments', label: '3 cuotas (cada 15 días)' },
+] as const;
 
 interface PaymentFormValues {
-  date: string;
-  category: PaymentCategory;
   planId: string;
-  status: PaymentStatus;
   method: PaymentMethod;
+  status: PaymentInput['status'];
   discount: string;
   discountReason: string;
-  useSplit: boolean;
+  initialPayment: string;
+  installmentType: 'single' | 'three_installments';
 }
 
 interface PaymentFormProps {
-  student: Student;
-  groupPlans: MembershipPlan[];
-  personalizedPlans: MembershipPlan[];
-  /** Recibe el payload listo para PaymentService.registerPayment. */
-  onSubmit: (input: PaymentInput) => Promise<void>;
+  studentId: string;
+  /** Recibe el PaymentInput ensamblado; la persistencia la hace el padre (usePayments). */
+  onSubmit: (input: PaymentInput) => Promise<void> | void;
   submitting?: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// Constantes
-// ---------------------------------------------------------------------------
-
-const METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'Efectivo', label: 'Efectivo' },
-  { value: 'Nequi', label: 'Nequi' },
-  { value: 'Banco', label: 'Banco' },
-];
-
-const STATUS_OPTIONS: { value: PaymentStatus; label: string }[] = [
-  { value: 'paid', label: 'Pagado' },
-  { value: 'upgrade', label: 'Upgrade de plan' },
-  { value: 'credit', label: 'Crédito' },
-];
-
-const PAYMENT_METHODS: [PaymentMethod, ...PaymentMethod[]] = [
-  'Efectivo',
-  'Nequi',
-  'Banco',
-];
-const PAYMENT_STATUSES: [PaymentStatus, ...PaymentStatus[]] = [
-  'paid',
-  'upgrade',
-  'credit',
-];
 
 function todayISO(): string {
   return toIsoDateUTC(new Date());
@@ -149,17 +108,10 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
     });
 }
 
-// ---------------------------------------------------------------------------
-// Componente
-// ---------------------------------------------------------------------------
+export function PaymentForm({ studentId, onSubmit, submitting = false }: PaymentFormProps) {
+  const { groupPlans, personalizedPlans, getPlanById } = useMemberships();
 
-export function PaymentForm({
-  student,
-  groupPlans,
-  personalizedPlans,
-  onSubmit,
-  submitting = false,
-}: PaymentFormProps) {
+  const [splitEnabled, setSplitEnabled] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
 
   // Planes según la categoría inicial del estudiante.
@@ -185,271 +137,194 @@ export function PaymentForm({
     resolver,
     mode: 'onSubmit',
     defaultValues: {
-      date: todayISO(),
-      category: initialCategory,
-      planId: student.planId ?? '',
-      status: 'paid',
+      planId: '',
       method: 'Efectivo',
-      discount: '0',
+      status: 'paid',
+      discount: '',
       discountReason: '',
-      useSplit: false,
+      initialPayment: '',
+      installmentType: 'single',
     },
   });
 
-  const watchCategory = form.watch('category');
-  const watchPlanId = form.watch('planId');
-  const watchDiscount = form.watch('discount');
-  const watchStatus = form.watch('status');
-  const watchDate = form.watch('date');
-  const watchUseSplit = form.watch('useSplit');
+  const planId = form.watch('planId');
+  const status = form.watch('status');
+  const discountStr = form.watch('discount');
 
-  // Planes según la categoría seleccionada (catálogo dinámico real).
-  const activePlans = useMemo(
-    () => (watchCategory === 'mensualidad' ? groupPlans : personalizedPlans),
-    [watchCategory, groupPlans, personalizedPlans],
-  );
+  // Precio del plan seleccionado y neto tras descuento.
+  const selected = useMemo(() => (planId ? getPlanById(planId) : null), [planId, getPlanById]);
+  const price = selected?.plan.price ?? 0;
+  const discount = Number(discountStr) || 0;
+  const net = Math.max(0, price - discount);
 
+  const isCredit = status === 'credit';
 
-
-  // Plan seleccionado actualmente.
-  const selectedPlan = useMemo(
-    () => activePlans.find((p) => p.id === watchPlanId) ?? null,
-    [activePlans, watchPlanId],
-  );
-
-  // Total con descuento.
-  const totalAmount = useMemo(() => {
-    if (!selectedPlan) return 0;
-    const discount = Number(watchDiscount) || 0;
-    return Math.max(0, selectedPlan.price - discount);
-  }, [selectedPlan, watchDiscount]);
-
-  // Fecha de vencimiento calculada automáticamente (STEERING_FORMS §4).
-  // NO existe input manual: se deriva de la fecha de pago + plan.
-  const computedEndDate = useMemo(() => {
-    if (!selectedPlan) return null;
-    return computeSubscriptionEndDate(
-      student.subscriptionEndDate || watchDate,
-      watchDate,
-      watchStatus,
-      selectedPlan,
-    );
-  }, [selectedPlan, student.subscriptionEndDate, watchDate, watchStatus]);
-
-  // Manejar envío.
   const handleSubmit = form.handleSubmit(async (values) => {
-    // Revalidación defensiva contra el catálogo real (el resolver ya lo hizo).
-    const plan = activePlans.find((p) => p.id === values.planId);
-    if (!plan) {
-      form.setError('planId', { message: messages.notInCatalog('El plan') });
+    const found = getPlanById(values.planId);
+    if (!found) {
+      form.setError('planId', { message: 'Selecciona un plan válido.' });
       return;
     }
 
-    const discount = Number(values.discount) || 0;
+    const discountValue = Number(values.discount) || 0;
+    const netAmount = Math.max(0, found.plan.price - discountValue);
+
+    // Validación de splits en el submit (además de la validación en vivo).
+    if (splitEnabled) {
+      const sum = splits.reduce((acc, s) => acc + s.amount, 0);
+      if (sum !== netAmount) {
+        form.setError('root', {
+          message: 'La suma de los pagos divididos no coincide con el total a pagar.',
+        });
+        return;
+      }
+    }
 
     const input: PaymentInput = {
-      studentId: student.id,
-      date: values.date,
-      amount: plan.price,
+      studentId,
+      date: todayISO(),
+      amount: found.plan.price,
       method: values.method,
+      splits: splitEnabled ? splits : undefined,
       status: values.status,
-      planName: plan.name,
-      category: values.category,
-      discount,
-      discountReason: values.discountReason?.trim() ?? '',
-      splits: values.useSplit && splits.length > 0 ? splits : undefined,
+      planName: found.plan.name,
+      category: found.category,
+      discount: discountValue,
+      discountReason: values.discountReason.trim() || undefined,
     };
 
+    // Crédito: adjuntar abono inicial y tipo de plan de cuotas (Req 5.7).
+    if (values.status === 'credit') {
+      const initial = Number(values.initialPayment) || 0;
+      input.initialPayment = initial;
+      input.creditPlan = {
+        type: values.installmentType,
+        initialPayment: initial,
+        remainingBalance: Math.max(0, netAmount - initial),
+        installments: [],
+      };
+    }
+
     await onSubmit(input);
-    form.reset({
-      date: todayISO(),
-      category: values.category,
-      planId: values.planId,
-      status: 'paid',
-      method: 'Efectivo',
-      discount: '0',
-      discountReason: '',
-      useSplit: false,
-    });
+    form.reset();
+    setSplitEnabled(false);
     setSplits([]);
   });
 
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Info del estudiante */}
-        <div className="rounded-lg border border-border bg-muted/50 p-4">
-          <p className="text-sm font-medium text-foreground">
-            {student.firstName} {student.lastName}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Doc: {student.documentId} | Plan actual: {student.planName}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Fecha */}
-          <FormField
-            control={form.control}
-            name="date"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Fecha del pago <span className="text-destructive">*</span>
-                </FormLabel>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Plan */}
+        <FormField
+          control={form.control}
+          name="planId"
+          rules={{ required: 'Selecciona un plan.' }}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Plan</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona un plan" />
+                  </SelectTrigger>
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                <SelectContent>
+                  {groupPlans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} — {formatCOP(p.price)}
+                    </SelectItem>
+                  ))}
+                  {personalizedPlans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} — {formatCOP(p.price)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          {/* Estado del pago */}
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tipo de pago</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* Estado del pago */}
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de pago</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          {/* Categoría */}
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Categoría</FormLabel>
-                <Select
-                  value={field.value}
-                  onValueChange={(val) => {
-                    field.onChange(val);
-                    // Al cambiar de catálogo, el plan previo puede no existir.
-                    form.setValue('planId', '');
-                  }}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar categoría" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="mensualidad">Mensualidad (Grupal)</SelectItem>
-                    <SelectItem value="personalizada">Personalizada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* Método principal */}
+        <FormField
+          control={form.control}
+          name="method"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Método de pago</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {METHODS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          {/* Plan — datos dinámicos reales */}
-          <FormField
-            control={form.control}
-            name="planId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Plan <span className="text-destructive">*</span>
-                </FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar plan" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {activePlans.map((plan) => (
-                      <SelectItem key={plan.id} value={plan.id}>
-                        {plan.name} — ${plan.price.toLocaleString('es-CO')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Método de pago */}
-          <FormField
-            control={form.control}
-            name="method"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Método de pago</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar método" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {METHODS.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Descuento — sin negativos ni texto */}
+        {/* Descuento */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="discount"
+            rules={{
+              validate: (v) =>
+                v === '' || Number(v) >= 0 || 'El descuento no puede ser negativo.',
+            }}
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Descuento ($)</FormLabel>
+                <FormLabel>Descuento (monto)</FormLabel>
                 <FormControl>
-                  {/*
-                    type="text" + inputMode numérico: la validación de "solo
-                    números / no negativos" la hace el schema Zod
-                    (nonNegativeAmount), que da mensajes claros en lugar del
-                    bloqueo silencioso del navegador con type="number".
-                  */}
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    {...field}
-                  />
+                  <Input type="number" min="0" step="1" placeholder="0" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
-          {/* Razón del descuento */}
           <FormField
             control={form.control}
             name="discountReason"
             render={({ field }) => (
-              <FormItem className="sm:col-span-2">
+              <FormItem>
                 <FormLabel>Razón del descuento (opcional)</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ej. Pronto pago, promoción..." {...field} />
+                  <Input placeholder="Ej. promoción de temporada" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -457,68 +332,86 @@ export function PaymentForm({
           />
         </div>
 
-        {/* Resumen: total y fecha de vencimiento calculada (read-only) */}
-        {selectedPlan && (
-          <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total a pagar</span>
-              <span className="text-lg font-bold text-foreground">
-                ${totalAmount.toLocaleString('es-CO')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Nueva fecha de vencimiento
-              </span>
-              <span
-                className="text-sm font-medium text-foreground"
-                data-testid="computed-end-date"
-              >
-                {computedEndDate ?? '—'}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Calculada automáticamente desde la fecha de pago y el plan. No editable.
-            </p>
+        {/* Crédito: cuota inicial + número de cuotas */}
+        {isCredit && (
+          <div className="grid grid-cols-1 gap-4 rounded-lg ring-1 ring-foreground/10 p-3 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="initialPayment"
+              rules={{
+                validate: (v) =>
+                  v === '' || Number(v) >= 0 || 'El abono inicial no puede ser negativo.',
+              }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Abono inicial</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="installmentType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Plan de cuotas</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {INSTALLMENT_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         )}
 
         {/* Pago dividido */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="useSplit"
-              checked={watchUseSplit}
-              onCheckedChange={(checked) => {
-                form.setValue('useSplit', checked === true);
-                if (!checked) setSplits([]);
-              }}
-            />
-            <Label htmlFor="useSplit" className="text-sm cursor-pointer">
-              Dividir pago entre varios métodos
-            </Label>
-          </div>
+        <SplitPaymentEditor
+          total={net}
+          enabled={splitEnabled}
+          onEnabledChange={setSplitEnabled}
+          splits={splits}
+          onSplitsChange={setSplits}
+        />
 
-          {watchUseSplit && (
-            <SplitPaymentEditor
-              totalAmount={totalAmount}
-              splits={splits}
-              onChange={setSplits}
-            />
-          )}
+        {/* Resumen del total a pagar */}
+        <div className="flex items-center justify-between rounded-lg bg-secondary-50 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Total a pagar</span>
+          <span className="font-semibold text-secondary-900">{formatCOP(net)}</span>
         </div>
 
-        {/* Botón de envío */}
-        <Button
-          type="submit"
-          className="w-full sm:w-auto"
-          disabled={submitting || form.formState.isSubmitting}
-        >
-          {submitting || form.formState.isSubmitting
-            ? 'Registrando pago…'
-            : 'Registrar pago'}
+        {form.formState.errors.root && (
+          <p role="alert" className="text-sm text-error-700">
+            {form.formState.errors.root.message}
+          </p>
+        )}
+
+        <Button type="submit" disabled={submitting || form.formState.isSubmitting}>
+          {submitting || form.formState.isSubmitting ? 'Registrando…' : 'Registrar pago'}
         </Button>
       </form>
     </Form>
   );
+}
+
+function formatCOP(amount: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
