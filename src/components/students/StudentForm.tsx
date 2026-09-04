@@ -12,13 +12,21 @@
  *  - 3.11 Preservación de customFields históricos al hacer submit.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import type { Student } from '@/types/student';
 import type { FormFieldConfig } from '@/types/settings';
+import type { StorageService } from '@/services/storage/StorageService';
+import {
+  documentSchema,
+  nonNegativeAmount,
+  isoDateSchema,
+  isDocumentUnique,
+} from '@/utils/validation';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -53,6 +61,11 @@ export interface StudentFormProps {
   isLoading?: boolean;
   /** Callback opcional para cancelar la edición. */
   onCancel?: () => void;
+  /**
+   * StorageService inyectable para la validación de unicidad del documento.
+   * Por defecto usa el singleton (getStorageService). Útil para tests.
+   */
+  storage?: StorageService;
 }
 
 /**
@@ -90,12 +103,17 @@ type FormValues = Record<string, unknown>;
  * Los campos `required` producen mensajes de error cuando están vacíos.
  * El guardián se valida condicionalmente según isMinor mediante superRefine.
  */
-function buildSchema(fields: FormFieldConfig[]): z.ZodType<FormValues> {
+function buildSchema(fields: FormFieldConfig[]): z.ZodTypeAny {
   const shape: Record<string, z.ZodTypeAny> = {
     // isMinor siempre presente para la lógica condicional (Req 3.2).
     isMinor: z.boolean().default(false),
     guardianName: z.string().optional(),
-    guardianDocument: z.string().optional(),
+    // Documento del acudiente: solo números (STEERING_FORMS §1), misma regla
+    // que documentId. La validación condicional de obligatoriedad sigue en
+    // el superRefine; aquí solo definimos el formato cuando haya valor.
+    guardianDocument: z
+      .union([z.literal(''), documentSchema('El documento del acudiente')])
+      .optional(),
   };
 
   for (const field of fields) {
@@ -106,20 +124,36 @@ function buildSchema(fields: FormFieldConfig[]): z.ZodType<FormValues> {
 
     let validator: z.ZodTypeAny;
 
+    // Documento: solo números (STEERING_FORMS §1). Se detecta por `name`
+    // porque en la config viene declarado como tipo 'text'.
+    if (field.name === 'documentId') {
+      validator = documentSchema(field.label);
+      shape[field.name] = validator;
+      continue;
+    }
+
     switch (field.type) {
       case 'number': {
-        // Los inputs number pueden llegar como string; permitimos ambos.
-        validator = z.union([z.number(), z.string()]);
+        // Monto/entero no negativo (STEERING_FORMS §1). Los inputs number
+        // pueden llegar como string; nonNegativeAmount coerciona y valida.
         if (field.required) {
-          validator = validator.refine(
-            (v) => v !== '' && v !== null && v !== undefined,
-            { message: `${field.label} es obligatorio.` },
-          );
+          validator = nonNegativeAmount(field.label);
+        } else {
+          // Opcional: permite vacío; si hay valor, debe ser no negativo.
+          validator = z.union([z.literal(''), nonNegativeAmount(field.label)]);
+        }
+        break;
+      }
+      case 'date': {
+        // Fecha ISO válida (STEERING_FORMS §4).
+        if (field.required) {
+          validator = isoDateSchema(field.label);
+        } else {
+          validator = z.union([z.literal(''), isoDateSchema(field.label)]);
         }
         break;
       }
       case 'select':
-      case 'date':
       case 'text':
       default: {
         validator = z.string();
@@ -157,7 +191,7 @@ function buildSchema(fields: FormFieldConfig[]): z.ZodType<FormValues> {
           }
         }
       }
-    }) as unknown as z.ZodType<FormValues>;
+    });
 }
 
 /**
@@ -258,6 +292,7 @@ export function StudentForm({
   onSubmit,
   isLoading = false,
   onCancel,
+  storage,
 }: StudentFormProps) {
   const schema = useMemo(() => buildSchema(fields), [fields]);
   const initialValues = useMemo(
@@ -265,18 +300,66 @@ export function StudentForm({
     [fields, defaultValues],
   );
 
+  // El cast del resolver evita la fricción de inferencia entre Zod v4 y
+  // react-hook-form, manteniendo FormValues como tipo del formulario.
+  const resolver = useMemo(
+    () =>
+      zodResolver(
+        schema as unknown as z.ZodType<FormValues, FormValues>,
+      ) as unknown as Resolver<FormValues>,
+    [schema],
+  );
+
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver,
     defaultValues: initialValues,
     mode: 'onSubmit',
   });
 
   const isMinor = form.watch('isMinor') === true;
 
+  // Estado de la validación asíncrona de unicidad del documento (STEERING_FORMS
+  // §5): mientras se consulta el StorageService (simulación backend), se
+  // deshabilita el submit y se informa al usuario.
+  const [isCheckingDocument, setIsCheckingDocument] = useState(false);
+
   const handleSubmit = form.handleSubmit(async (values) => {
+    // Validación dual de unicidad del documento antes de persistir.
+    // El schema ya garantizó que sea solo dígitos; aquí verificamos que no
+    // exista otro estudiante con el mismo documento (excluyendo el propio en
+    // modo edición).
+    const documentId = String(values.documentId ?? '').trim();
+    if (documentId) {
+      setIsCheckingDocument(true);
+      try {
+        const unique = await isDocumentUnique(
+          documentId,
+          storage,
+          defaultValues?.id,
+        );
+        if (!unique.success) {
+          form.setError('documentId', {
+            type: 'manual',
+            message: unique.error,
+          });
+          return;
+        }
+      } catch {
+        form.setError('documentId', {
+          type: 'manual',
+          message: 'No se pudo verificar el documento. Intenta de nuevo.',
+        });
+        return;
+      } finally {
+        setIsCheckingDocument(false);
+      }
+    }
+
     const data = assembleStudentData(values, fields, defaultValues);
     await onSubmit(data);
   });
+
+  const submitDisabled = isLoading || isCheckingDocument;
 
   return (
     <Form {...form}>
@@ -350,6 +433,7 @@ export function StudentForm({
                   <FormControl>
                     <Input
                       type="text"
+                      inputMode="numeric"
                       value={(field.value as string) ?? ''}
                       onChange={field.onChange}
                       onBlur={field.onBlur}
@@ -376,8 +460,12 @@ export function StudentForm({
               Cancelar
             </Button>
           )}
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Guardando...' : 'Guardar'}
+          <Button type="submit" disabled={submitDisabled}>
+            {isCheckingDocument
+              ? 'Verificando documento...'
+              : isLoading
+                ? 'Guardando...'
+                : 'Guardar'}
           </Button>
         </div>
       </form>
@@ -425,11 +513,15 @@ function DynamicField({
             ) : (
               <Input
                 type={
-                  field.type === 'number'
-                    ? 'number'
-                    : field.type === 'date'
-                      ? 'date'
-                      : 'text'
+                  // Documento y number usan text + inputMode numérico: la
+                  // validación numérica la hace Zod (mensajes claros en vez
+                  // del bloqueo silencioso de type="number").
+                  field.type === 'date' ? 'date' : 'text'
+                }
+                inputMode={
+                  field.name === 'documentId' || field.type === 'number'
+                    ? 'numeric'
+                    : undefined
                 }
                 value={(rhf.value as string | number | undefined) ?? ''}
                 onChange={rhf.onChange}

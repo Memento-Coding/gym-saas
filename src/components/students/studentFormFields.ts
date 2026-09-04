@@ -16,7 +16,8 @@ export const DEFAULT_STUDENT_FIELDS: FormFieldConfig[] = [
   { id: 'phone', name: 'phone', label: 'Teléfono', type: 'text', required: false, isBuiltIn: true },
   { id: 'email', name: 'email', label: 'Email', type: 'text', required: false, isBuiltIn: true },
   { id: 'dateOfBirth', name: 'dateOfBirth', label: 'Fecha de nacimiento', type: 'date', required: false, isBuiltIn: true },
-  { id: 'planName', name: 'planName', label: 'Plan', type: 'text', required: false, isBuiltIn: true },
+  { id: 'planName', name: 'planName', label: 'Plan', type: 'select', required: true, isBuiltIn: true,
+    options: ['Plan Básico genérico', 'Plan Estándar genérico', 'Plan Premium genérico'] },
   { id: 'monthlyFee', name: 'monthlyFee', label: 'Mensualidad', type: 'number', required: false, isBuiltIn: true },
   { id: 'subscriptionEndDate', name: 'subscriptionEndDate', label: 'Vencimiento', type: 'date', required: true, isBuiltIn: true },
 ];
