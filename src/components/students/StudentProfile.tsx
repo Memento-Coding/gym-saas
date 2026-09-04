@@ -1,9 +1,13 @@
 /**
- * StudentProfile — Panel lateral (Sheet) con el detalle del estudiante (Req 3.8).
+ * StudentProfile — Modal centrado con el detalle del estudiante (Req 3.8).
+ *
+ * Migrado de Sheet (panel lateral) a Dialog (modal centrado) según
+ * STEERING_FORMS §6: formularios largos con múltiples secciones y acciones
+ * usan Dialog para mejor aprovechamiento del espacio en pantallas grandes.
  *
  * Muestra los datos principales y expone las acciones:
  *  - Editar
- *  - Congelar / Descongelar (con un diálogo para razón y días al congelar)
+ *  - Congelar / Descongelar (con un diálogo anidado para razón y días)
  *  - Eliminar (con diálogo de confirmación previo)
  *
  * Si el estudiante está congelado, muestra freezeReason y freezeEndDate.
@@ -22,13 +26,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,12 +35,10 @@ import {
 } from '@/components/ui/dialog';
 import {
   PAYMENT_LABELS,
-  STATUS_LABELS,
   derivePaymentStatus,
   formatDate,
   paymentBadgeStyle,
   statusBadgeStyle,
-  statusDotStyle,
 } from './studentStatus';
 
 /** Botón con feedback de press (Apple fluid). */
@@ -79,6 +74,9 @@ export function StudentProfile({
 
   const isFrozen = student.status === 'frozen';
   const payment = derivePaymentStatus(student);
+  // El congelamiento solo está disponible para cuentas activas y al día / por vencer.
+  const canFreeze =
+    student.status === 'active' && (payment === 'al_dia' || payment === 'por_vencer');
 
   const handleConfirmFreeze = async () => {
     const days = Number(freezeDays);
@@ -104,30 +102,31 @@ export function StudentProfile({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
-          <SheetHeader className="border-b">
+      {/* ── Modal principal del perfil ─────────────────────────────────────── */}
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-0 overflow-hidden p-0">
+          {/* Cabecera */}
+          <DialogHeader className="border-b px-6 py-4">
             <div className="flex items-center gap-2">
-              <SheetTitle className="text-lg">
+              <DialogTitle className="text-lg">
                 {student.firstName} {student.lastName}
-              </SheetTitle>
+              </DialogTitle>
+              {/* Badge de estado de pago — coherente con la tabla */}
               <Badge
-                className="gap-1.5 border-transparent"
-                style={statusBadgeStyle(student.status)}
+                className="border-transparent"
+                style={paymentBadgeStyle(payment)}
+                data-testid="profile-payment-badge"
               >
-                <span
-                  className="size-1.5 rounded-full"
-                  style={statusDotStyle(student.status)}
-                />
-                {STATUS_LABELS[student.status]}
+                {PAYMENT_LABELS[payment]}
               </Badge>
             </div>
-            <SheetDescription>
+            <DialogDescription>
               Documento: {student.documentId || '—'}
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          {/* Cuerpo con scroll */}
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
             {isFrozen && (
               <div
                 className="space-y-1 rounded-lg p-3 text-sm"
@@ -176,7 +175,7 @@ export function StudentProfile({
           </div>
 
           {/* Acciones */}
-          <div className="flex flex-wrap gap-2 border-t p-4">
+          <div className="flex flex-wrap gap-2 border-t px-6 py-4">
             <MotionButton
               whileTap={{ scale: 0.97 }}
               variant="outline"
@@ -196,14 +195,30 @@ export function StudentProfile({
                 <Sun /> Descongelar
               </MotionButton>
             ) : (
-              <MotionButton
-                whileTap={{ scale: 0.97 }}
-                variant="outline"
-                onClick={() => setFreezeDialogOpen(true)}
-                disabled={isLoading}
-              >
-                <Snowflake /> Congelar
-              </MotionButton>
+              <div className="flex flex-col gap-1">
+                <MotionButton
+                  whileTap={canFreeze ? { scale: 0.97 } : undefined}
+                  variant="outline"
+                  onClick={() => canFreeze && setFreezeDialogOpen(true)}
+                  disabled={isLoading || !canFreeze}
+                  title={
+                    !canFreeze
+                      ? student.status === 'inactive'
+                        ? 'No se puede congelar una cuenta inactiva'
+                        : 'No se puede congelar una cuenta con pago vencido'
+                      : undefined
+                  }
+                >
+                  <Snowflake /> Congelar
+                </MotionButton>
+                {!canFreeze && (
+                  <p className="text-xs text-muted-foreground">
+                    {student.status === 'inactive'
+                      ? 'Cuenta inactiva — debe renovar primero.'
+                      : 'Pago vencido — debe renovar primero.'}
+                  </p>
+                )}
+              </div>
             )}
 
             <MotionButton
@@ -216,8 +231,8 @@ export function StudentProfile({
               <Trash2 /> Eliminar
             </MotionButton>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de congelamiento */}
       <Dialog open={freezeDialogOpen} onOpenChange={setFreezeDialogOpen}>

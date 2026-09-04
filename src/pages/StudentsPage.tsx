@@ -24,12 +24,12 @@ import { useStudents } from '@/hooks/useStudents';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 import { StudentFilters, ALL } from '@/components/students/StudentFilters';
 import type {
@@ -169,7 +169,7 @@ export function StudentsPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre, documento o teléfono"
+            placeholder="Buscar por nombre, documento, teléfono o plan"
             className="pl-8"
           />
         </div>
@@ -200,20 +200,20 @@ export function StudentsPage() {
         isLoading={isLoading}
       />
 
-      {/* Formulario crear/editar */}
-      <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent side="right" className="w-full gap-0 sm:max-w-lg">
-          <SheetHeader className="border-b">
-            <SheetTitle>
+      {/* ── Modal de formulario (crear / editar) ──────────────────────────── */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b px-6 py-4">
+            <DialogTitle>
               {editing ? 'Editar estudiante' : 'Nuevo estudiante'}
-            </SheetTitle>
-            <SheetDescription>
+            </DialogTitle>
+            <DialogDescription>
               {editing
                 ? 'Actualiza la información del estudiante.'
                 : 'Completa los datos para registrar un nuevo estudiante.'}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto p-4">
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             <StudentForm
               key={editing?.id ?? 'new'}
               fields={DEFAULT_STUDENT_FIELDS}
@@ -223,8 +223,8 @@ export function StudentsPage() {
               onCancel={() => setFormOpen(false)}
             />
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

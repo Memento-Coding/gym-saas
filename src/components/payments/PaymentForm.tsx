@@ -13,6 +13,9 @@
 
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -66,7 +69,43 @@ interface PaymentFormProps {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toIsoDateUTC(new Date());
+}
+
+/**
+ * Construye el schema Zod del formulario de pago.
+ *
+ * `planId` se valida contra el catálogo real completo (grupales + personalizados),
+ * un conjunto estable que no depende de la categoría seleccionada; un plan
+ * inexistente o eliminado es rechazado (STEERING_FORMS §2). La coherencia
+ * categoría↔plan y el tope de descuento se verifican en el `superRefine`.
+ */
+function buildPaymentSchema(allPlans: MembershipPlan[]) {
+  return z
+    .object({
+      date: isoDateSchema('La fecha de pago'),
+      category: z.enum(['mensualidad', 'personalizada']),
+      // Select validado contra el catálogo real de planes.
+      planId: selectFromSource(allPlans, (p) => p.id, 'El plan'),
+      status: z.enum(PAYMENT_STATUSES),
+      method: z.enum(PAYMENT_METHODS),
+      // Monto monetario: sin texto, sin negativos (STEERING_FORMS §1).
+      discount: nonNegativeAmount('El descuento'),
+      discountReason: z.string().optional().default(''),
+      useSplit: z.boolean().default(false),
+    })
+    .superRefine((data, ctx) => {
+      // El descuento no puede igualar ni superar el precio del plan elegido.
+      const plan = allPlans.find((p) => p.id === data.planId);
+      const discountNum = Number(data.discount);
+      if (plan && Number.isFinite(discountNum) && discountNum >= plan.price) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['discount'],
+          message: 'El descuento no puede ser mayor o igual al precio del plan.',
+        });
+      }
+    });
 }
 
 export function PaymentForm({ studentId, onSubmit, submitting = false }: PaymentFormProps) {
@@ -75,7 +114,28 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
   const [splitEnabled, setSplitEnabled] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
 
+  // Planes según la categoría inicial del estudiante.
+  const initialCategory: PaymentCategory = student.planCategory ?? 'mensualidad';
+
+  // Catálogo real completo (estable) para validar planId contra datos reales.
+  const allPlans = useMemo(
+    () => [...groupPlans, ...personalizedPlans],
+    [groupPlans, personalizedPlans],
+  );
+
+  // Resolver estático basado en el catálogo completo. La coherencia
+  // categoría↔plan se valida en el superRefine del schema. El cast del
+  // resolver evita la fricción de inferencia entre Zod v4 y react-hook-form
+  // manteniendo PaymentFormValues como tipo del formulario.
+  const resolver = useMemo(
+    () =>
+      zodResolver(buildPaymentSchema(allPlans)) as unknown as Resolver<PaymentFormValues>,
+    [allPlans],
+  );
+
   const form = useForm<PaymentFormValues>({
+    resolver,
+    mode: 'onSubmit',
     defaultValues: {
       planId: '',
       method: 'Efectivo',

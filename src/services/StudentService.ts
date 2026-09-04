@@ -14,6 +14,7 @@
 
 import type { Student } from '../types/student';
 import { getStorageService } from './storage/StorageService';
+import { normalizeText } from '@/utils/stringUtils';
 
 /** Clave de almacenamiento donde persiste la colección de estudiantes. */
 const STORAGE_KEY = 'students';
@@ -231,8 +232,13 @@ export class StudentService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Búsqueda por substring insensible a mayúsculas/minúsculas sobre
-   * firstName, lastName, documentId y phone.
+   * Búsqueda por substring insensible a mayúsculas/minúsculas sobre:
+   *  - Nombre completo (firstName + " " + lastName concatenados) — permite
+   *    buscar "Gustavo Luna" y obtener el estudiante correcto.
+   *  - firstName y lastName individualmente.
+   *  - documentId (cédula), con coincidencias parciales y totales.
+   *  - phone (teléfono), con coincidencias parciales y totales.
+   *  - planName — permite filtrar por el nombre del plan del estudiante.
    *
    * @param query    Texto a buscar. Vacío devuelve todos los estudiantes.
    * @param students Colección opcional sobre la que buscar. Si se omite, se leen
@@ -240,16 +246,32 @@ export class StudentService {
    */
   async search(query: string, students?: Student[]): Promise<Student[]> {
     const source = students ?? (await this.getAll());
-    const term = query.trim().toLowerCase();
+
+    // normalizeText elimina tildes y convierte a minúsculas, haciendo la
+    // búsqueda insensible a acentos: "estandar" encuentra "Estándar".
+    const term = normalizeText(query.trim());
 
     if (term === '') {
       return source;
     }
 
     return source.filter((s) => {
-      const haystack = [s.firstName, s.lastName, s.documentId, s.phone]
-        .filter((v): v is string => typeof v === 'string')
-        .map((v) => v.toLowerCase());
+      // El nombre completo se evalúa como campo compuesto para que búsquedas
+      // como "Gustavo Luna" encuentren al estudiante aunque cada parte esté
+      // en un campo distinto del modelo.
+      const fullName = `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim();
+
+      const haystack = [
+        fullName,
+        s.firstName,
+        s.lastName,
+        s.documentId,
+        s.phone,
+        s.planName,
+      ]
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+        .map(normalizeText);
+
       return haystack.some((field) => field.includes(term));
     });
   }
@@ -322,13 +344,20 @@ export class StudentService {
   /**
    * Congela la membresía de un estudiante (Req 11.1 y 11.2).
    *
-   * Efectos:
+   * Restricciones de negocio:
+   *  - Solo se puede congelar si el estado de cuenta es 'active' (no 'inactive').
+   *  - Solo se puede congelar si el estado de pago es 'al_dia' o 'por_vencer'
+   *    (no 'vencido'). Congelar una cuenta vencida no tiene sentido de negocio
+   *    y generaría inconsistencias al extender el vencimiento.
+   *
+   * Efectos al congelar:
    *  - Registra freezeReason con la razón proveída.
    *  - Fija freezeDate a la fecha actual (ISO YYYY-MM-DD).
    *  - Calcula freezeEndDate = hoy + days.
-   *  - Extiende automáticamente subscriptionEndDate en la misma cantidad de days,
+   *  - Extiende subscriptionEndDate en la misma cantidad de days,
    *    de modo que el tiempo congelado no se pierde.
-   *  - Recalcula el status (que resultará 'frozen' mientras freezeEndDate sea futuro).
+   *  - El status resultante es siempre 'frozen' (freezeEndDate futuro garantiza
+   *    que evaluateStatus devuelva 'frozen').
    *
    * @param id     Identificador del estudiante.
    * @param reason Motivo del congelamiento.
@@ -351,23 +380,50 @@ export class StudentService {
       }
 
       const current = students[index];
-      const today = new Date();
+      const now = new Date();
+
+      // Restricción de negocio: no se puede congelar una cuenta inactiva.
+      if (current.status === 'inactive') {
+        return {
+          success: false,
+          error: 'No se puede congelar una cuenta inactiva. El estudiante debe ponerse al día primero.',
+        };
+      }
+
+      // Restricción de negocio: no se puede congelar una cuenta ya congelada.
+      if (current.status === 'frozen') {
+        return {
+          success: false,
+          error: 'La membresía ya está congelada.',
+        };
+      }
+
+      // Restricción de negocio: no se puede congelar una cuenta con pago vencido.
+      const paymentState = this.getPaymentStatus(current, now);
+      if (paymentState === 'vencido') {
+        return {
+          success: false,
+          error: 'No se puede congelar una cuenta con pago vencido. El estudiante debe renovar su suscripción primero.',
+        };
+      }
 
       // Extensión automática de la fecha de vencimiento (Req 11.2).
       const baseSubEnd = new Date(current.subscriptionEndDate);
       const extendedSubEnd = Number.isNaN(baseSubEnd.getTime())
-        ? this.addDaysIso(today, days)
+        ? this.addDaysIso(now, days)
         : this.addDaysIso(baseSubEnd, days);
 
       const frozen: Student = {
         ...current,
         freezeReason: reason,
-        freezeDate: this.toIsoDate(today),
-        freezeEndDate: this.addDaysIso(today, days),
+        freezeDate: this.toIsoDate(now),
+        freezeEndDate: this.addDaysIso(now, days),
         subscriptionEndDate: extendedSubEnd,
       };
 
-      const updated = this.withEvaluatedStatus(frozen, today);
+      // withEvaluatedStatus devuelve 'frozen' de forma garantizada porque
+      // freezeEndDate acaba de setearse en el futuro (now + days).
+      const updated = this.withEvaluatedStatus(frozen, now);
       const next = [...students];
       next[index] = updated;
       await this.write(next);

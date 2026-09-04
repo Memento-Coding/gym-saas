@@ -1,12 +1,16 @@
 /**
  * StudentList — Tabla de estudiantes (Req 11.4).
  *
- * Columnas: Nombre, Documento, Plan, Vencimiento, Estado.
+ * Columnas: Nombre, Documento, Plan, Vencimiento, Estado de pago.
+ *
+ * La columna "Estado de pago" muestra el estado calculado en cliente a partir
+ * de subscriptionEndDate (derivePaymentStatus), usando los tokens semánticos
+ * --payment-*-bg/text del Design System. Esto garantiza que el badge sea
+ * consistente con el filtro de StudentFilters, que también filtra por estado
+ * de pago (no por student.status).
  *
  * Los estudiantes congelados (status === 'frozen') se agrupan visualmente al
  * final de la lista, bajo una fila separadora, según indica el diseño.
- *
- * Los badges de estado usan los colores semánticos del Design System.
  * Cada fila es clickeable y abre el StudentProfile del estudiante.
  * Se usa framer-motion para dar feedback sutil al presionar (whileTap).
  */
@@ -26,10 +30,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  STATUS_LABELS,
+  PAYMENT_LABELS,
   formatDate,
-  statusBadgeStyle,
-  statusDotStyle,
+  paymentBadgeStyle,
+  derivePaymentStatus,
 } from './studentStatus';
 
 export interface StudentListProps {
@@ -74,7 +78,7 @@ export function StudentList({ students, isLoading, onSelect }: StudentListProps)
             <TableHead>Documento</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead>Vencimiento</TableHead>
-            <TableHead>Estado</TableHead>
+            <TableHead>Estado de pago</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -117,6 +121,10 @@ function StudentRow({
   student: Student;
   onSelect: (student: Student) => void;
 }) {
+  // Estado de pago calculado desde subscriptionEndDate — consistente con el
+  // filtro de StudentFilters y con StudentService.filter().
+  const paymentStatus = derivePaymentStatus(student);
+
   return (
       <motion.tr
         data-slot="table-row"
@@ -146,14 +154,11 @@ function StudentRow({
         </TableCell>
         <TableCell>
           <Badge
-            className="gap-1.5 border-transparent"
-            style={statusBadgeStyle(student.status)}
+            className="border-transparent"
+            style={paymentBadgeStyle(paymentStatus)}
+            data-testid={`payment-badge-${student.id}`}
           >
-            <span
-              className="size-1.5 rounded-full"
-              style={statusDotStyle(student.status)}
-            />
-            {STATUS_LABELS[student.status]}
+            {PAYMENT_LABELS[paymentStatus]}
           </Badge>
         </TableCell>
       </motion.tr>
