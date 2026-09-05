@@ -37,6 +37,16 @@ import { SplitPaymentEditor } from '@/components/payments/SplitPaymentEditor';
 import { useMemberships } from '@/hooks/useMemberships';
 import type { PaymentInput } from '@/services/PaymentService';
 import type { PaymentMethod, PaymentSplit } from '@/types/payment';
+import type { MembershipPlan } from '@/types/membership';
+import {
+  toIsoDateUTC,
+  isoDateSchema,
+  selectFromSource,
+  nonNegativeAmount,
+} from '@/utils/validation';
+
+const PAYMENT_STATUSES = ['paid', 'upgrade', 'credit'] as const;
+const PAYMENT_METHODS = ['Efectivo', 'Nequi', 'Banco'] as const;
 
 const METHODS: PaymentMethod[] = ['Efectivo', 'Nequi', 'Banco'];
 
@@ -113,9 +123,6 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
 
   const [splitEnabled, setSplitEnabled] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
-
-  // Planes según la categoría inicial del estudiante.
-  const initialCategory: PaymentCategory = student.planCategory ?? 'mensualidad';
 
   // Catálogo real completo (estable) para validar planId contra datos reales.
   const allPlans = useMemo(

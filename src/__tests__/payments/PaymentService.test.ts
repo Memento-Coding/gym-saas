@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import { createStorageService, resetStorageService } from '@/services/storage/StorageService';
 import type { StorageService } from '@/services/storage/StorageService';
-import { PaymentService } from '@/services/PaymentService';
+import { PaymentService, formatReceiptNo } from '@/services/PaymentService';
 import type { MembershipPlan } from '@/types/membership';
 import type { Student } from '@/types/student';
 import type { PaymentSplit } from '@/types/payment';
@@ -55,7 +55,7 @@ function makeStudent(overrides: Partial<Student> = {}): Student {
     medicalNotes: '',
     status: 'active',
     beltRank: 'Blanco',
-    consent: { accepted: false, date: '', version: '' },
+    consent: { signed: false, signedDate: '', signedVersion: 0, signature: '' },
     ...overrides,
   };
 }
@@ -102,34 +102,52 @@ describe('PaymentService', () => {
       const student = makeStudent({ subscriptionEndDate: '2025-06-15' });
       await storage.set<Student[]>(STUDENTS_KEY, [student]);
 
-      const result = await paymentService.registerPayment({
-        studentId: student.id,
-        date: '2025-06-10', // payDate < oldEndDate, so use oldEndDate
-        plan: NORMAL_PLAN,
-        category: 'mensualidad',
-        method: 'Efectivo',
-        status: 'paid',
-      });
+      const result = await paymentService.registerPayment(
+        {
+          studentId: student.id,
+          date: '2025-06-10', // payDate < oldEndDate, so use oldEndDate
+          amount: NORMAL_PLAN.price,
+          planName: NORMAL_PLAN.name,
+          category: 'mensualidad',
+          method: 'Efectivo',
+          status: 'paid',
+        },
+        {
+          currentSubscriptionEndDate: student.subscriptionEndDate,
+          plan: NORMAL_PLAN,
+        },
+      );
 
+      expect(result.success).toBe(true);
+      if (!result.success) return;
       // max(2025-06-15, 2025-06-10) = 2025-06-15 + 1 month = 2025-07-15
-      expect(result.updatedStudent.subscriptionEndDate).toBe('2025-07-15');
+      expect(result.data.newSubscriptionEndDate).toBe('2025-07-15');
     });
 
     it('should use paymentDate as base when payDate > oldEndDate', async () => {
       const student = makeStudent({ subscriptionEndDate: '2025-05-01' });
       await storage.set<Student[]>(STUDENTS_KEY, [student]);
 
-      const result = await paymentService.registerPayment({
-        studentId: student.id,
-        date: '2025-06-20', // payDate > oldEndDate
-        plan: NORMAL_PLAN,
-        category: 'mensualidad',
-        method: 'Nequi',
-        status: 'paid',
-      });
+      const result = await paymentService.registerPayment(
+        {
+          studentId: student.id,
+          date: '2025-06-20', // payDate > oldEndDate
+          amount: NORMAL_PLAN.price,
+          planName: NORMAL_PLAN.name,
+          category: 'mensualidad',
+          method: 'Nequi',
+          status: 'paid',
+        },
+        {
+          currentSubscriptionEndDate: student.subscriptionEndDate,
+          plan: NORMAL_PLAN,
+        },
+      );
 
+      expect(result.success).toBe(true);
+      if (!result.success) return;
       // max(2025-05-01, 2025-06-20) = 2025-06-20 + 1 month = 2025-07-20
-      expect(result.updatedStudent.subscriptionEndDate).toBe('2025-07-20');
+      expect(result.data.newSubscriptionEndDate).toBe('2025-07-20');
     });
 
     it('should NOT extend date for single plans', async () => {
@@ -137,16 +155,25 @@ describe('PaymentService', () => {
       const student = makeStudent({ subscriptionEndDate: originalDate });
       await storage.set<Student[]>(STUDENTS_KEY, [student]);
 
-      const result = await paymentService.registerPayment({
-        studentId: student.id,
-        date: '2025-06-20',
-        plan: SINGLE_PLAN,
-        category: 'mensualidad',
-        method: 'Efectivo',
-        status: 'paid',
-      });
+      const result = await paymentService.registerPayment(
+        {
+          studentId: student.id,
+          date: '2025-06-20',
+          amount: SINGLE_PLAN.price,
+          planName: SINGLE_PLAN.name,
+          category: 'mensualidad',
+          method: 'Efectivo',
+          status: 'paid',
+        },
+        {
+          currentSubscriptionEndDate: student.subscriptionEndDate,
+          plan: SINGLE_PLAN,
+        },
+      );
 
-      expect(result.updatedStudent.subscriptionEndDate).toBe(originalDate);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.newSubscriptionEndDate).toBe(originalDate);
     });
 
     it('should NOT extend date for upgrade status', async () => {
@@ -154,16 +181,25 @@ describe('PaymentService', () => {
       const student = makeStudent({ subscriptionEndDate: originalDate });
       await storage.set<Student[]>(STUDENTS_KEY, [student]);
 
-      const result = await paymentService.registerPayment({
-        studentId: student.id,
-        date: '2025-06-20',
-        plan: NORMAL_PLAN,
-        category: 'mensualidad',
-        method: 'Banco',
-        status: 'upgrade',
-      });
+      const result = await paymentService.registerPayment(
+        {
+          studentId: student.id,
+          date: '2025-06-20',
+          amount: NORMAL_PLAN.price,
+          planName: NORMAL_PLAN.name,
+          category: 'mensualidad',
+          method: 'Banco',
+          status: 'upgrade',
+        },
+        {
+          currentSubscriptionEndDate: student.subscriptionEndDate,
+          plan: NORMAL_PLAN,
+        },
+      );
 
-      expect(result.updatedStudent.subscriptionEndDate).toBe(originalDate);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.newSubscriptionEndDate).toBe(originalDate);
     });
 
     it('should NOT extend date for credit status', async () => {
@@ -171,16 +207,25 @@ describe('PaymentService', () => {
       const student = makeStudent({ subscriptionEndDate: originalDate });
       await storage.set<Student[]>(STUDENTS_KEY, [student]);
 
-      const result = await paymentService.registerPayment({
-        studentId: student.id,
-        date: '2025-06-20',
-        plan: NORMAL_PLAN,
-        category: 'mensualidad',
-        method: 'Efectivo',
-        status: 'credit',
-      });
+      const result = await paymentService.registerPayment(
+        {
+          studentId: student.id,
+          date: '2025-06-20',
+          amount: NORMAL_PLAN.price,
+          planName: NORMAL_PLAN.name,
+          category: 'mensualidad',
+          method: 'Efectivo',
+          status: 'credit',
+        },
+        {
+          currentSubscriptionEndDate: student.subscriptionEndDate,
+          plan: NORMAL_PLAN,
+        },
+      );
 
-      expect(result.updatedStudent.subscriptionEndDate).toBe(originalDate);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.newSubscriptionEndDate).toBe(originalDate);
     });
 
     // Property-based test con fast-check
@@ -209,16 +254,26 @@ describe('PaymentService', () => {
             const student = makeStudent({ subscriptionEndDate: oldEnd });
             await s.set<Student[]>(STUDENTS_KEY, [student]);
 
-            const result = await ps.registerPayment({
-              studentId: student.id,
-              date: payDate,
-              plan: NORMAL_PLAN,
-              category: 'mensualidad',
-              method: 'Efectivo',
-              status: 'paid',
-            });
+            const result = await ps.registerPayment(
+              {
+                studentId: student.id,
+                date: payDate,
+                amount: NORMAL_PLAN.price,
+                planName: NORMAL_PLAN.name,
+                category: 'mensualidad',
+                method: 'Efectivo',
+                status: 'paid',
+              },
+              {
+                currentSubscriptionEndDate: oldEnd,
+                plan: NORMAL_PLAN,
+              },
+            );
 
-            const newEnd = new Date(result.updatedStudent.subscriptionEndDate);
+            expect(result.success).toBe(true);
+            if (!result.success) return;
+
+            const newEnd = new Date(result.data.newSubscriptionEndDate!);
             const maxBase = new Date(
               Math.max(oldEndRaw.getTime(), payDateRaw.getTime()),
             );
@@ -255,17 +310,26 @@ describe('PaymentService', () => {
             const student = makeStudent({ subscriptionEndDate: oldEnd });
             await s.set<Student[]>(STUDENTS_KEY, [student]);
 
-            const result = await ps.registerPayment({
-              studentId: student.id,
-              date: payDate,
-              plan: NORMAL_PLAN,
-              category: 'mensualidad',
-              method: 'Efectivo',
-              status,
-            });
+            const result = await ps.registerPayment(
+              {
+                studentId: student.id,
+                date: payDate,
+                amount: NORMAL_PLAN.price,
+                planName: NORMAL_PLAN.name,
+                category: 'mensualidad',
+                method: 'Efectivo',
+                status,
+              },
+              {
+                currentSubscriptionEndDate: oldEnd,
+                plan: NORMAL_PLAN,
+              },
+            );
 
+            expect(result.success).toBe(true);
+            if (!result.success) return;
             // La fecha no debe cambiar para upgrade o credit
-            expect(result.updatedStudent.subscriptionEndDate).toBe(oldEnd);
+            expect(result.data.newSubscriptionEndDate).toBe(oldEnd);
           },
         ),
         { numRuns: 50 },
@@ -295,16 +359,25 @@ describe('PaymentService', () => {
             const student = makeStudent({ subscriptionEndDate: oldEnd });
             await s.set<Student[]>(STUDENTS_KEY, [student]);
 
-            const result = await ps.registerPayment({
-              studentId: student.id,
-              date: payDate,
-              plan: SINGLE_PLAN,
-              category: 'mensualidad',
-              method: 'Efectivo',
-              status: 'paid',
-            });
+            const result = await ps.registerPayment(
+              {
+                studentId: student.id,
+                date: payDate,
+                amount: SINGLE_PLAN.price,
+                planName: SINGLE_PLAN.name,
+                category: 'mensualidad',
+                method: 'Efectivo',
+                status: 'paid',
+              },
+              {
+                currentSubscriptionEndDate: oldEnd,
+                plan: SINGLE_PLAN,
+              },
+            );
 
-            expect(result.updatedStudent.subscriptionEndDate).toBe(oldEnd);
+            expect(result.success).toBe(true);
+            if (!result.success) return;
+            expect(result.data.newSubscriptionEndDate).toBe(oldEnd);
           },
         ),
         { numRuns: 50 },
@@ -330,14 +403,17 @@ describe('PaymentService', () => {
       const result = await paymentService.registerPayment({
         studentId: student.id,
         date: '2025-06-10',
-        plan: NORMAL_PLAN,
+        amount: NORMAL_PLAN.price,
+        planName: NORMAL_PLAN.name,
         category: 'mensualidad',
         method: 'Efectivo',
         status: 'paid',
         splits,
       });
 
-      expect(result.payment.splits).toEqual(splits);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.payment.splits).toEqual(splits);
     });
 
     it('should reject splits that do NOT sum to totalAmount', async () => {
@@ -350,17 +426,20 @@ describe('PaymentService', () => {
       ];
 
       // Total = 110000, splits sum = 80000 (mismatch)
-      await expect(
-        paymentService.registerPayment({
-          studentId: student.id,
-          date: '2025-06-10',
-          plan: NORMAL_PLAN,
-          category: 'mensualidad',
-          method: 'Efectivo',
-          status: 'paid',
-          splits,
-        }),
-      ).rejects.toThrow(/suma de los pagos divididos/);
+      const result = await paymentService.registerPayment({
+        studentId: student.id,
+        date: '2025-06-10',
+        amount: NORMAL_PLAN.price,
+        planName: NORMAL_PLAN.name,
+        category: 'mensualidad',
+        method: 'Efectivo',
+        status: 'paid',
+        splits,
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toMatch(/suma de los pagos divididos/);
     });
 
     it('should reject splits with excess over totalAmount', async () => {
@@ -373,17 +452,20 @@ describe('PaymentService', () => {
       ];
 
       // Total = 110000, splits sum = 130000 (excess)
-      await expect(
-        paymentService.registerPayment({
-          studentId: student.id,
-          date: '2025-06-10',
-          plan: NORMAL_PLAN,
-          category: 'mensualidad',
-          method: 'Efectivo',
-          status: 'paid',
-          splits,
-        }),
-      ).rejects.toThrow(/suma de los pagos divididos/);
+      const result = await paymentService.registerPayment({
+        studentId: student.id,
+        date: '2025-06-10',
+        amount: NORMAL_PLAN.price,
+        planName: NORMAL_PLAN.name,
+        category: 'mensualidad',
+        method: 'Efectivo',
+        status: 'paid',
+        splits,
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toMatch(/suma de los pagos divididos/);
     });
 
     // Property-based test
@@ -410,31 +492,23 @@ describe('PaymentService', () => {
             const splitsSum = splits.reduce((sum, sp) => sum + sp.amount, 0);
             const totalAmount = NORMAL_PLAN.price; // 110000
 
+            const result = await ps.registerPayment({
+              studentId: student.id,
+              date: '2025-06-10',
+              amount: totalAmount,
+              planName: NORMAL_PLAN.name,
+              category: 'mensualidad',
+              method: 'Efectivo',
+              status: 'paid',
+              splits,
+            });
+
             if (Math.abs(splitsSum - totalAmount) <= 0.01) {
-              // Should succeed
-              const result = await ps.registerPayment({
-                studentId: student.id,
-                date: '2025-06-10',
-                plan: NORMAL_PLAN,
-                category: 'mensualidad',
-                method: 'Efectivo',
-                status: 'paid',
-                splits,
-              });
-              expect(result.payment.splits).toEqual(splits);
+              expect(result.success).toBe(true);
+              if (!result.success) return;
+              expect(result.data.payment.splits).toEqual(splits);
             } else {
-              // Should fail
-              await expect(
-                ps.registerPayment({
-                  studentId: student.id,
-                  date: '2025-06-10',
-                  plan: NORMAL_PLAN,
-                  category: 'mensualidad',
-                  method: 'Efectivo',
-                  status: 'paid',
-                  splits,
-                }),
-              ).rejects.toThrow();
+              expect(result.success).toBe(false);
             }
           },
         ),
@@ -455,7 +529,8 @@ describe('PaymentService', () => {
       const result1 = await paymentService.registerPayment({
         studentId: student.id,
         date: '2025-06-10',
-        plan: NORMAL_PLAN,
+        amount: NORMAL_PLAN.price,
+        planName: NORMAL_PLAN.name,
         category: 'mensualidad',
         method: 'Efectivo',
         status: 'paid',
@@ -464,22 +539,27 @@ describe('PaymentService', () => {
       const result2 = await paymentService.registerPayment({
         studentId: student.id,
         date: '2025-07-10',
-        plan: NORMAL_PLAN,
+        amount: NORMAL_PLAN.price,
+        planName: NORMAL_PLAN.name,
         category: 'mensualidad',
         method: 'Efectivo',
         status: 'paid',
       });
 
-      expect(result1.receiptNo).toBe('GOP-0001');
-      expect(result2.receiptNo).toBe('GOP-0002');
-      expect(result1.receiptNo).not.toBe(result2.receiptNo);
+      expect(result1.success).toBe(true);
+      expect(result2.success).toBe(true);
+      if (!result1.success || !result2.success) return;
+
+      expect(result1.data.receiptNo).toBe('GOP-0001');
+      expect(result2.data.receiptNo).toBe('GOP-0002');
+      expect(result1.data.receiptNo).not.toBe(result2.data.receiptNo);
     });
 
     it('should format numbers with zero-padding to 4 digits', () => {
-      expect(PaymentService.formatReceiptNumber(1)).toBe('GOP-0001');
-      expect(PaymentService.formatReceiptNumber(42)).toBe('GOP-0042');
-      expect(PaymentService.formatReceiptNumber(999)).toBe('GOP-0999');
-      expect(PaymentService.formatReceiptNumber(10000)).toBe('GOP-10000');
+      expect(formatReceiptNo(1)).toBe('GOP-0001');
+      expect(formatReceiptNo(42)).toBe('GOP-0042');
+      expect(formatReceiptNo(999)).toBe('GOP-0999');
+      expect(formatReceiptNo(10000)).toBe('GOP-10000');
     });
   });
 
@@ -495,7 +575,8 @@ describe('PaymentService', () => {
       const result = await paymentService.registerPayment({
         studentId: student.id,
         date: '2025-06-10',
-        plan: NORMAL_PLAN,
+        amount: NORMAL_PLAN.price,
+        planName: NORMAL_PLAN.name,
         category: 'mensualidad',
         method: 'Efectivo',
         status: 'paid',
@@ -503,9 +584,11 @@ describe('PaymentService', () => {
         discountReason: 'Pronto pago',
       });
 
-      expect(result.payment.amount).toBe(100000); // 110000 - 10000
-      expect(result.payment.discount).toBe(10000);
-      expect(result.payment.discountReason).toBe('Pronto pago');
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.payment.amount).toBe(110000);
+      expect(result.data.payment.discount).toBe(10000);
+      expect(result.data.payment.discountReason).toBe('Pronto pago');
     });
   });
 });
