@@ -158,7 +158,7 @@ describe('ReceiptService', () => {
       const payment = makePayment({ status: 'credit' });
       const client = makeClient();
       const creditPlan = {
-        totalInstallments: 3,
+        type: 'three_installments' as const,
         initialPayment: 40000,
         remainingBalance: 60000,
         installments: [
@@ -219,7 +219,7 @@ describe('ReceiptService', () => {
     it('should handle data with credit plan', () => {
       const data = makeReceiptData({
         creditPlan: {
-          totalInstallments: 3,
+          type: 'three_installments' as const,
           initialPayment: 40000,
           remainingBalance: 60000,
           installments: [
