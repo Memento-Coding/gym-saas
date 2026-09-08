@@ -57,7 +57,7 @@ describe('PaymentForm — descuento (input numérico)', () => {
     const user = userEvent.setup();
     const { onSubmit } = renderForm();
 
-    const discount = screen.getByLabelText(/descuento/i) as HTMLInputElement;
+    const discount = screen.getByLabelText(/descuento \(monto\)/i) as HTMLInputElement;
     await user.clear(discount);
     await user.type(discount, '-500');
 

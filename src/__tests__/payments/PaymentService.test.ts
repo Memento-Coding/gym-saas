@@ -236,10 +236,12 @@ describe('PaymentService', () => {
           fc.date({
             min: new Date('2024-01-01'),
             max: new Date('2026-12-31'),
+            noInvalidDate: true,
           }),
           fc.date({
             min: new Date('2024-01-01'),
             max: new Date('2026-12-31'),
+            noInvalidDate: true,
           }),
           async (oldEndRaw, payDateRaw) => {
             // Limpiar storage para cada iteración
@@ -273,10 +275,12 @@ describe('PaymentService', () => {
             expect(result.success).toBe(true);
             if (!result.success) return;
 
-            const newEnd = new Date(result.data.newSubscriptionEndDate!);
-            const maxBase = new Date(
-              Math.max(oldEndRaw.getTime(), payDateRaw.getTime()),
-            );
+            // Comparar a nivel de DÍA (no de instante): el servicio trunca a
+            // YYYY-MM-DD, por lo que la hora aleatoria de fc.date no debe influir.
+            // Normalizamos ambos lados al día ISO para una comparación coherente.
+            const newEnd = new Date(`${result.data.newSubscriptionEndDate!}T00:00:00.000Z`);
+            const maxBaseDay = oldEnd >= payDate ? oldEnd : payDate; // string ISO YYYY-MM-DD
+            const maxBase = new Date(`${maxBaseDay}T00:00:00.000Z`);
 
             // La nueva fecha debe ser estrictamente mayor que max(oldEnd, payDate)
             expect(newEnd.getTime()).toBeGreaterThan(maxBase.getTime());
@@ -292,10 +296,12 @@ describe('PaymentService', () => {
           fc.date({
             min: new Date('2024-01-01'),
             max: new Date('2026-12-31'),
+            noInvalidDate: true,
           }),
           fc.date({
             min: new Date('2024-01-01'),
             max: new Date('2026-12-31'),
+            noInvalidDate: true,
           }),
           fc.constantFrom<'paid' | 'upgrade' | 'credit'>('upgrade', 'credit'),
           async (oldEndRaw, payDateRaw, status) => {
@@ -342,10 +348,12 @@ describe('PaymentService', () => {
           fc.date({
             min: new Date('2024-01-01'),
             max: new Date('2026-12-31'),
+            noInvalidDate: true,
           }),
           fc.date({
             min: new Date('2024-01-01'),
             max: new Date('2026-12-31'),
+            noInvalidDate: true,
           }),
           async (oldEndRaw, payDateRaw) => {
             localStorage.clear();
