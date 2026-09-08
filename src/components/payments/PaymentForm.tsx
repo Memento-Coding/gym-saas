@@ -318,7 +318,13 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
               <FormItem>
                 <FormLabel>Descuento (monto)</FormLabel>
                 <FormControl>
-                  <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                  {/*
+                    type="text" + inputMode numérico: la validación de "solo
+                    números / no negativos" la hace la regla del campo, con
+                    mensajes claros en vez del bloqueo silencioso de
+                    type="number" (que además impide capturar el signo en jsdom).
+                  */}
+                  <Input type="text" inputMode="numeric" placeholder="0" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

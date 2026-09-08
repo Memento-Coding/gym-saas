@@ -17,6 +17,7 @@
     "bdd:consentimiento": "bddgen && playwright test --grep @consentimiento",
     "bdd:comunicacion": "bddgen && playwright test --grep @comunicacion",
     "bdd:ajustes": "bddgen && playwright test --grep @ajustes",
+    "bdd:estudiantes": "bddgen && playwright test --grep @estudiantes",
     "bdd:report": "playwright show-report",
     "bdd:headed": "bddgen && playwright test --headed",
     "bdd:slow": "bddgen && SLOW_STEP_MS=1 SLOW_MO=1500 playwright test --headed",
