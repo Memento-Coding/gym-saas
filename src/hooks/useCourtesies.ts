@@ -11,6 +11,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
 import { CourtesyService, type CourtesyBonusInput, type StudentBonusGroup } from '@/services/CourtesyService';
+import { isApiMode } from '@/config/env';
+import {
+  listApiCourtesies,
+  createApiCourtesy,
+  deleteApiCourtesy,
+} from '@/services/api';
+import { studentService } from '@/services/StudentService';
+import type { CourtesyBonus } from '@/types/courtesy';
 
 interface UseCourtesiesReturn {
   bonusGroups: StudentBonusGroup[];
@@ -57,8 +65,32 @@ export function useCourtesies(): UseCourtesiesReturn {
     setError(null);
 
     try {
-      const groups = await service.getAllBonuses();
-      setBonusGroups(groups);
+      if (isApiMode()) {
+        // Las cortesías son una entidad propia en la API (/courtesies). Se
+        // agrupan por estudiante para la UI.
+        const list = await listApiCourtesies();
+        const groups = new Map<string, StudentBonusGroup>();
+        for (const c of list) {
+          const studentId = (c.studentId as string) ?? '';
+          const group = groups.get(studentId) ?? {
+            studentId,
+            studentName: (c.studentName as string) ?? '',
+            bonuses: [] as CourtesyBonus[],
+          };
+          group.bonuses.push({
+            id: c.id,
+            startDate: (c.startDate as string) ?? '',
+            endDate: (c.endDate as string) ?? '',
+            reason: (c.reason as string) ?? '',
+            weeks: (c.weeks as number) ?? 0,
+          });
+          groups.set(studentId, group);
+        }
+        setBonusGroups([...groups.values()]);
+      } else {
+        const groups = await service.getAllBonuses();
+        setBonusGroups(groups);
+      }
     } catch {
       setError('Error al cargar datos de cortesías.');
     } finally {
@@ -78,7 +110,19 @@ export function useCourtesies(): UseCourtesiesReturn {
       setError(null);
 
       try {
-        await service.addBonus(studentId, input);
+        if (isApiMode()) {
+          const student = await studentService.getById(studentId);
+          const studentName = student
+            ? `${student.firstName} ${student.lastName}`.trim()
+            : '';
+          await createApiCourtesy(studentId, studentName, {
+            startDate: input.startDate,
+            weeks: input.weeks,
+            reason: input.reason,
+          });
+        } else {
+          await service.addBonus(studentId, input);
+        }
         await refreshData();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al registrar el bono.';
@@ -95,7 +139,11 @@ export function useCourtesies(): UseCourtesiesReturn {
       setError(null);
 
       try {
-        await service.removeBonus(studentId, bonusId);
+        if (isApiMode()) {
+          await deleteApiCourtesy(bonusId);
+        } else {
+          await service.removeBonus(studentId, bonusId);
+        }
         await refreshData();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al eliminar el bono.';

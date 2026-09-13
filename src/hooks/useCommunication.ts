@@ -14,6 +14,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
 import { CommunicationService, type BatchSendResult } from '@/services/CommunicationService';
 import { studentService } from '@/services/StudentService';
+import { isApiMode } from '@/config/env';
+import { sendApiEmail } from '@/services/api';
 import type {
   ChannelConfig,
   MessageTemplate,
@@ -135,6 +137,50 @@ export function useCommunication(): UseCommunicationReturn {
     async (targetStudents: Student[], templateId: TemplateId, channelId?: string): Promise<BatchSendResult> => {
       if (!service) throw new Error('Servicio no inicializado.');
       setError(null);
+
+      // ─── Modo API: el envío de email se hace vía SES en el backend. ───
+      if (isApiMode()) {
+        try {
+          const template = templates?.[templateId];
+          const recipients = targetStudents
+            .filter((s) => s.email && s.email.length > 0)
+            .map((s) => ({
+              name: `${s.firstName} ${s.lastName}`.trim(),
+              email: s.email,
+            }));
+
+          const apiResult = await sendApiEmail(templateId, recipients, {}, true);
+
+          // Adapta la respuesta de la API (total/sent/failed/errors) al
+          // BatchSendResult que espera la UI.
+          const sentEmails = new Set(recipients.map((r) => r.email));
+          const result: BatchSendResult = {
+            sent: targetStudents
+              .filter((s) => sentEmails.has(s.email))
+              .slice(0, apiResult.sent)
+              .map((s) => ({
+                studentId: s.id,
+                studentName: `${s.firstName} ${s.lastName}`.trim(),
+                channelId: 'email',
+                result: { success: true },
+              })),
+            skipped: targetStudents
+              .filter((s) => !s.email || s.email.length === 0)
+              .map((s) => ({
+                studentId: s.id,
+                studentName: `${s.firstName} ${s.lastName}`.trim(),
+                channelId: 'email',
+                reason: 'Sin email',
+              })),
+          };
+          void template;
+          return result;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Error al enviar mensajes.';
+          setError(message);
+          throw new Error(message);
+        }
+      }
 
       try {
         const result = await service.sendBatch(targetStudents, templateId, channelId);
