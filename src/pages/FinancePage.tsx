@@ -62,8 +62,8 @@ export function FinancePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Finanzas</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight">Finanzas</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           Movimientos financieros, traslados y resumen por período.
         </p>
       </div>
@@ -81,7 +81,7 @@ export function FinancePage() {
       <FinanceOverview summary={summary} loading={loading} />
 
       {/* Formulario de traslados */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Registrar traslado</CardTitle>
           <CardDescription>
@@ -95,10 +95,10 @@ export function FinancePage() {
       </Card>
 
       {/* Sub-pestañas de movimientos (Req 7.2) */}
-      <Tabs defaultValue={FINANCE_TABS[0].value}>
-        <TabsList className="flex-wrap">
+      <Tabs defaultValue={FINANCE_TABS[0].value} className="space-y-4">
+        <TabsList className="flex-wrap gap-1">
           {FINANCE_TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
+            <TabsTrigger key={tab.value} value={tab.value} className="rounded-lg">
               {tab.label}
             </TabsTrigger>
           ))}

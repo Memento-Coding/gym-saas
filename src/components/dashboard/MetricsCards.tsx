@@ -76,25 +76,28 @@ const METRICS: MetricDef[] = [
 
 export function MetricsCards({ metrics, loading = false }: MetricsCardsProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       {METRICS.map((metric) => (
-        <Card key={metric.key}>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card key={metric.key} className="gap-2 py-4">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {metric.label}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p
-              className="font-extrabold tracking-tight"
+              className="metric-value font-bold"
               style={{
-                fontSize: 'var(--text-3xl)',
-                lineHeight: 'var(--leading-heading, 1.1)',
+                fontSize: 'clamp(1.35rem, 2.5vw, 1.75rem)',
                 color: metric.color,
               }}
               aria-live="polite"
             >
-              {loading ? '—' : metric.value(metrics)}
+              {loading ? (
+                <span className="skeleton inline-block w-16 h-7 rounded-lg" />
+              ) : (
+                metric.value(metrics)
+              )}
             </p>
           </CardContent>
         </Card>
