@@ -26,6 +26,8 @@ import {
   nonNegativeAmount,
   isoDateSchema,
   isDocumentUnique,
+  phoneSchema,
+  emailSchema,
 } from '@/utils/validation';
 
 import { Button } from '@/components/ui/button';
@@ -129,6 +131,18 @@ function buildSchema(fields: FormFieldConfig[]): z.ZodTypeAny {
     if (field.name === 'documentId') {
       validator = documentSchema(field.label);
       shape[field.name] = validator;
+      continue;
+    }
+
+    // Teléfono: solo dígitos 7–15, detectado por tipo 'tel'.
+    if (field.type === 'tel') {
+      shape[field.name] = phoneSchema(field.label, field.required);
+      continue;
+    }
+
+    // Email: formato válido, detectado por tipo 'email'.
+    if (field.type === 'email') {
+      shape[field.name] = emailSchema(field.label, field.required);
       continue;
     }
 
@@ -513,15 +527,33 @@ function DynamicField({
             ) : (
               <Input
                 type={
-                  // Documento y number usan text + inputMode numérico: la
-                  // validación numérica la hace Zod (mensajes claros en vez
-                  // del bloqueo silencioso de type="number").
-                  field.type === 'date' ? 'date' : 'text'
+                  // 'date' → type="date" nativo.
+                  // 'email' → type="email" (keyboard email en móvil + validación browser).
+                  // 'tel' → type="tel" (keyboard numérico en móvil).
+                  // 'number', 'text' → type="text" + inputMode numérico cuando aplica:
+                  //   la validación la hace Zod con mensajes claros, no el bloqueo
+                  //   silencioso de type="number" que además rompe en jsdom.
+                  field.type === 'date'
+                    ? 'date'
+                    : field.type === 'email'
+                      ? 'email'
+                      : field.type === 'tel'
+                        ? 'tel'
+                        : 'text'
                 }
                 inputMode={
                   field.name === 'documentId' || field.type === 'number'
                     ? 'numeric'
-                    : undefined
+                    : field.type === 'tel'
+                      ? 'tel'
+                      : undefined
+                }
+                autoComplete={
+                  field.type === 'email'
+                    ? 'email'
+                    : field.type === 'tel'
+                      ? 'tel'
+                      : undefined
                 }
                 value={(rhf.value as string | number | undefined) ?? ''}
                 onChange={rhf.onChange}

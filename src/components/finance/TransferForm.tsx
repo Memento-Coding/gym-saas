@@ -9,7 +9,11 @@
  * Requirements: 7.3
  */
 
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import type { Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { isoDateSchema, nonNegativeAmount } from '@/utils/validation';
 import type { FinanceBox, TransferInput } from '@/services/FinanceService';
 import type { PaymentMethod } from '@/types/payment';
 
@@ -43,6 +48,12 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
 
 /** Valor centinela para "sin método específico" (traslado solo entre cajas). */
 const NO_METHOD = '__none__';
+
+const BOX_VALUES = BOXES.map((b) => b.value) as [FinanceBox, ...FinanceBox[]];
+const METHOD_VALUES = [NO_METHOD, ...METHODS.map((m) => m.value)] as [
+  string,
+  ...string[],
+];
 
 interface TransferFormValues {
   date: string;
@@ -65,8 +76,45 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function buildTransferSchema() {
+  return z
+    .object({
+      // Fecha válida ISO (STEERING_FORMS §4).
+      date: isoDateSchema('La fecha'),
+      // Monto: entero positivo (STEERING_FORMS §1). Los traslados no tienen
+      // monto cero con sentido de negocio; se usa nonNegativeAmount y se
+      // agrega refine > 0 a nivel de formulario.
+      amount: nonNegativeAmount('El monto').refine((n) => n > 0, {
+        message: 'El monto debe ser mayor que cero.',
+      }),
+      fromBox: z.enum(BOX_VALUES),
+      toBox: z.enum(BOX_VALUES),
+      fromMethod: z.enum(METHOD_VALUES),
+      toMethod: z.enum(METHOD_VALUES),
+      concept: z.string().optional().default(''),
+    })
+    .superRefine((data, ctx) => {
+      // Las cajas origen y destino no pueden ser la misma.
+      if (data.fromBox === data.toBox) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toBox'],
+          message: 'La caja destino debe ser diferente a la caja origen.',
+        });
+      }
+    });
+}
+
 export function TransferForm({ onSubmit, submitting = false }: TransferFormProps) {
+  const resolver = useMemo(
+    () =>
+      zodResolver(buildTransferSchema()) as unknown as Resolver<TransferFormValues>,
+    [],
+  );
+
   const form = useForm<TransferFormValues>({
+    resolver,
+    mode: 'onSubmit',
     defaultValues: {
       date: todayISO(),
       amount: '',
@@ -79,11 +127,9 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
   });
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    const amount = Number(values.amount);
-
     const input: TransferInput = {
       date: new Date(values.date).toISOString(),
-      amount,
+      amount: Number(values.amount),
       fromBox: values.fromBox,
       toBox: values.toBox,
       fromMethod: values.fromMethod === NO_METHOD ? undefined : (values.fromMethod as PaymentMethod),
@@ -110,7 +156,6 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
         <FormField
           control={form.control}
           name="date"
-          rules={{ required: 'La fecha es obligatoria.' }}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Fecha</FormLabel>
@@ -126,20 +171,18 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
         <FormField
           control={form.control}
           name="amount"
-          rules={{
-            required: 'El monto es obligatorio.',
-            validate: (v) =>
-              (Number(v) > 0 && Number.isFinite(Number(v))) ||
-              'El monto debe ser mayor que cero.',
-          }}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Monto</FormLabel>
               <FormControl>
+                {/*
+                  type="text" + inputMode="numeric": la validación (positivo,
+                  no negativo, no NaN) la hace nonNegativeAmount del catálogo
+                  Zod con mensajes claros. Alinea con STEERING_FORMS §1.
+                */}
                 <Input
-                  type="number"
-                  min="1"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="0"
                   {...field}
                 />
@@ -279,3 +322,4 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
     </Form>
   );
 }
+

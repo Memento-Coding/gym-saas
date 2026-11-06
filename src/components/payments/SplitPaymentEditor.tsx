@@ -115,10 +115,15 @@ export function SplitPaymentEditor({
 
               <div className="grid flex-1 gap-1.5">
                 <Label className="text-xs text-muted-foreground">Monto</Label>
+                {/*
+                  type="text" + inputMode="numeric": consistent con STEERING_FORMS §1.
+                  El min="0" de type="number" no es suficiente sin Zod revalidando
+                  cada split; el feedback visual en vivo (suma vs total) es la
+                  validación principal aquí.
+                */}
                 <Input
-                  type="number"
-                  min="0"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
                   value={Number.isFinite(split.amount) ? split.amount : ''}
                   onChange={(e) =>
                     updateRow(index, { amount: e.target.value === '' ? 0 : Number(e.target.value) })

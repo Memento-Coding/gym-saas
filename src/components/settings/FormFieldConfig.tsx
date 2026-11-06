@@ -45,6 +45,8 @@ const FIELD_TYPE_LABELS: Record<FormFieldConfigType['type'], string> = {
   number: 'Número',
   date: 'Fecha',
   select: 'Selección',
+  email: 'Email',
+  tel: 'Teléfono',
 };
 
 function generateId(): string {

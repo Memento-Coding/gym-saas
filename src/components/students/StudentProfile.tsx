@@ -17,7 +17,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Pencil, Snowflake, Sun, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 import type { Student } from '@/types/student';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +39,7 @@ import {
   paymentBadgeStyle,
   statusBadgeStyle,
 } from './studentStatus';
+import { positiveInteger } from '@/utils/validation';
 
 /** Botón con feedback de press (Apple fluid). */
 const MotionButton = motion.create(Button);
@@ -78,20 +78,36 @@ export function StudentProfile({
   const canFreeze =
     student.status === 'active' && (payment === 'al_dia' || payment === 'por_vencer');
 
+  const [freezeReasonError, setFreezeReasonError] = useState('');
+  const [freezeDaysError, setFreezeDaysError] = useState('');
+
   const handleConfirmFreeze = async () => {
-    const days = Number(freezeDays);
+    // Validación inline con mensajes en el campo, no toast (STEERING_FORMS §6).
+    let valid = true;
+
     if (!freezeReason.trim()) {
-      toast.error('Indica el motivo del congelamiento.');
-      return;
+      setFreezeReasonError('El motivo es obligatorio.');
+      valid = false;
+    } else {
+      setFreezeReasonError('');
     }
-    if (!Number.isFinite(days) || days <= 0) {
-      toast.error('Los días deben ser un número positivo.');
-      return;
+
+    const daysResult = positiveInteger('Los días', 365).safeParse(freezeDays);
+    if (!daysResult.success) {
+      setFreezeDaysError(daysResult.error.issues[0]?.message ?? 'Ingresa un número entre 1 y 365.');
+      valid = false;
+    } else {
+      setFreezeDaysError('');
     }
-    await onFreeze(student.id, freezeReason.trim(), days);
+
+    if (!valid) return;
+
+    await onFreeze(student.id, freezeReason.trim(), Number(freezeDays));
     setFreezeDialogOpen(false);
     setFreezeReason('');
     setFreezeDays('30');
+    setFreezeReasonError('');
+    setFreezeDaysError('');
   };
 
   const handleConfirmDelete = async () => {
@@ -235,7 +251,10 @@ export function StudentProfile({
       </Dialog>
 
       {/* Diálogo de congelamiento */}
-      <Dialog open={freezeDialogOpen} onOpenChange={setFreezeDialogOpen}>
+      <Dialog open={freezeDialogOpen} onOpenChange={(open) => {
+        setFreezeDialogOpen(open);
+        if (!open) { setFreezeReasonError(''); setFreezeDaysError(''); }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Congelar membresía</DialogTitle>
@@ -250,19 +269,38 @@ export function StudentProfile({
               <Textarea
                 id="freeze-reason"
                 value={freezeReason}
-                onChange={(e) => setFreezeReason(e.target.value)}
+                onChange={(e) => { setFreezeReason(e.target.value); setFreezeReasonError(''); }}
                 placeholder="Ej. Lesión, viaje, etc."
+                aria-invalid={Boolean(freezeReasonError)}
+                className={freezeReasonError ? 'border-destructive' : undefined}
               />
+              {freezeReasonError && (
+                <p className="text-xs font-medium text-destructive" role="alert">
+                  {freezeReasonError}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="freeze-days">Días de congelamiento</Label>
+              {/*
+                type="text" + inputMode="numeric": Zod (positiveInteger) valida
+                el rango [1, 365] con mensaje claro. Evita el bloqueo silencioso
+                de type="number" y el comportamiento inconsistente en jsdom.
+              */}
               <Input
                 id="freeze-days"
-                type="number"
-                min={1}
+                type="text"
+                inputMode="numeric"
                 value={freezeDays}
-                onChange={(e) => setFreezeDays(e.target.value)}
+                onChange={(e) => { setFreezeDays(e.target.value); setFreezeDaysError(''); }}
+                aria-invalid={Boolean(freezeDaysError)}
+                className={freezeDaysError ? 'border-destructive' : undefined}
               />
+              {freezeDaysError && (
+                <p className="text-xs font-medium text-destructive" role="alert">
+                  {freezeDaysError}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
