@@ -17,6 +17,8 @@ import { getStorageService } from '@/services/storage';
 import { SaleService, type CreateSaleInput } from '@/services/SaleService';
 import { InventoryService, type ServiceResult } from '@/services/InventoryService';
 import type { Sale, SaleItem } from '@/types/sale';
+import { isApiMode } from '@/config/env';
+import { createApiSale } from '@/services/api';
 
 export interface UseSalesReturn {
   sales: Sale[];
@@ -84,8 +86,6 @@ export function useSales(): UseSalesReturn {
       }
       setError(null);
 
-      // 1. Descuento de stock atómico (Req 8.2, 8.3). Los servicios (stock null)
-      //    no descuentan; los productos validan stock suficiente.
       const saleItems: SaleItem[] = input.items.map((line) => ({
         inventoryId: line.inventoryId,
         name: line.name,
@@ -93,6 +93,36 @@ export function useSales(): UseSalesReturn {
         unitPrice: line.unitPrice,
         subtotal: line.quantity * line.unitPrice,
       }));
+
+      // ─── Modo API: el backend descuenta stock y registra finanzas de forma
+      //     transaccional (TransactWriteItems). Se envía la venta completa. ───
+      if (isApiMode()) {
+        try {
+          const total = saleItems.reduce((acc, i) => acc + i.subtotal, 0);
+          const draft: Sale = {
+            id: '',
+            date: input.date ?? new Date().toISOString().slice(0, 10),
+            clientType: input.clientType,
+            clientId: input.clientId,
+            clientName: input.clientName,
+            items: saleItems,
+            total,
+            type: input.type,
+            method: input.method,
+            receiptNo: '',
+            creditPlan: undefined,
+          };
+          const created = await createApiSale(draft);
+          await refreshData();
+          return { success: true, data: created };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Error al registrar la venta.';
+          setError(message);
+          return { success: false, error: message };
+        }
+      }
+
+      // ─── Modo local: descuento de stock atómico + creación local. ───
 
       const stockResult = await inventoryService.applySale(saleItems);
       if (!stockResult.success) {

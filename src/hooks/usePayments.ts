@@ -21,6 +21,8 @@ import {
   type ReceiptClientInfo,
 } from '@/services/ReceiptService';
 import type { Payment } from '@/types/payment';
+import { isApiMode } from '@/config/env';
+import { createApiPayment } from '@/services/api';
 
 interface RegisterOptions {
   /** Datos del cliente para el comprobante (Req 14.1). */
@@ -105,6 +107,53 @@ export function usePayments(): UsePaymentsReturn {
         return { success: false, error: 'El servicio de pagos no está listo.' };
       }
       setError(null);
+
+      // ─── Modo API: el backend registra el pago, genera el recibo (GOP-XXXX)
+      //     y extiende la membresía. Construimos un Payment con los datos del
+      //     input y lo enviamos con el studentId. ───
+      if (isApiMode()) {
+        try {
+          const draft: Payment = {
+            id: '',
+            date: input.date,
+            amount: input.amount,
+            method: input.method,
+            splits: input.splits,
+            status: input.status,
+            planName: input.planName,
+            category: input.category,
+            discount: input.discount ?? 0,
+            discountReason: input.discountReason ?? '',
+          };
+          const created = await createApiPayment(draft, input.studentId);
+          const result: ServiceResult<RegisterPaymentResult> = {
+            success: true,
+            data: { payment: created, receiptNo: created.receiptNo ?? '' },
+          };
+
+          if (options.downloadReceipt !== false) {
+            try {
+              const receiptData = ReceiptService.fromPayment(
+                created,
+                options.client,
+                undefined,
+                options.academyName,
+                options.academyLogo,
+              );
+              ReceiptService.generateAndDownload(receiptData);
+            } catch {
+              setError('El pago se registró, pero no se pudo generar el comprobante.');
+            }
+          }
+
+          await refreshData();
+          return result;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Error al registrar el pago.';
+          setError(message);
+          return { success: false, error: message };
+        }
+      }
 
       const result = await service.registerPayment(input, {
         currentSubscriptionEndDate: options.currentSubscriptionEndDate,

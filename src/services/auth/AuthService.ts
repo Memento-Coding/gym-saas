@@ -176,6 +176,21 @@ export async function getAccessToken(): Promise<string | undefined> {
   return session.tokens?.accessToken?.toString();
 }
 
+/**
+ * Obtiene el ID token JWT de la sesión actual.
+ *
+ * El API Gateway de GymOps valida el JWT con el authorizer de Cognito y espera
+ * el ID token (contiene los claims de identidad del usuario) en el header
+ * `Authorization: Bearer <token>`. Amplify realiza el refresh automático de
+ * forma transparente al invocar fetchAuthSession().
+ *
+ * @see gym-sass-infra/docs/API.md — "El IdToken en la respuesta es el que se usa como Bearer token."
+ */
+export async function getIdToken(): Promise<string | undefined> {
+  const session = await fetchAuthSession({ forceRefresh: false });
+  return session.tokens?.idToken?.toString();
+}
+
 // ─── Recuperación de contraseña ────────────────────────────────────────────────
 
 /**

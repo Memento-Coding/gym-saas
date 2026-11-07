@@ -12,6 +12,7 @@
 import { IndexedDBAdapter, isIndexedDBAvailable } from './IndexedDBAdapter';
 import { LocalStorageAdapter } from './LocalStorageAdapter';
 import type { StorageAdapter } from './IndexedDBAdapter';
+import { isApiMode } from '@/config/env';
 
 export interface StorageService {
   get<T>(key: string): Promise<T | null>;
@@ -120,6 +121,17 @@ export async function createStorageService(): Promise<StorageService> {
 
   if (useLocalStorageOnly) {
     instance = new StorageServiceImpl(localAdapter, null);
+    return instance;
+  }
+
+  // API mode: back the StorageService with the REST API of GymOps. The local
+  // adapter is passed as fallback for keys without a dedicated REST resource
+  // (e.g. 'meta' for the optimistic client-side receipt sequence).
+  if (isApiMode()) {
+    const { ApiStorageAdapter } = await import('@/services/api/ApiStorageAdapter');
+    const apiAdapter = new ApiStorageAdapter(localAdapter);
+    await apiAdapter.init();
+    instance = new StorageServiceImpl(apiAdapter, null);
     return instance;
   }
 

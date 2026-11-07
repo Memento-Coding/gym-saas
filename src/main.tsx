@@ -3,18 +3,24 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { Toaster } from '@/components/ui/sonner'
-import { configureAuth } from '@/services/auth'
+import { configureAuth } from '@/services/auth/AuthService'
+import { initApiAuthBridge } from '@/services/api/authToken'
+import { getAuthConfig, isApiMode } from '@/config/env'
 
-// Configura Amplify/Cognito con las variables de entorno.
-// Si VITE_AUTH_BYPASS=true, AuthProvider ignora esta config y usa el mock local.
-configureAuth({
-  userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID ?? '',
-  userPoolClientId: import.meta.env.VITE_COGNITO_CLIENT_ID ?? '',
-  region: import.meta.env.VITE_COGNITO_REGION ?? 'us-east-1',
-  oauthDomain: import.meta.env.VITE_COGNITO_OAUTH_DOMAIN ?? '',
-  redirectSignIn: import.meta.env.VITE_COGNITO_REDIRECT_SIGN_IN ?? window.location.origin,
-  redirectSignOut: import.meta.env.VITE_COGNITO_REDIRECT_SIGN_OUT ?? window.location.origin,
-})
+// ─── Configuración de autenticación (Cognito) ──────────────────────────────────
+// Solo se configura Amplify si hay un User Pool definido en el entorno. En modo
+// bypass local (sin Cognito) esto se omite y el AuthProvider usa el usuario mock.
+const authConfig = getAuthConfig();
+if (authConfig) {
+  configureAuth(authConfig);
+}
+
+// ─── Bridge de token para el apiClient ──────────────────────────────────────────
+// Registra el provider que adjunta el JWT de Cognito en las llamadas a la API.
+// Solo es necesario cuando la app consume la API real.
+if (isApiMode()) {
+  initApiAuthBridge();
+}
 
 // E2E test helper: expose storage reset in development mode
 if (import.meta.env.DEV) {
