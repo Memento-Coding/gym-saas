@@ -33,11 +33,13 @@ export function MainLayout() {
         className={
           'pt-[var(--header-height-mobile)] md:pt-0 ' +
           'md:ml-[var(--sidebar-width-collapsed)] lg:ml-[var(--sidebar-width)] ' +
-          'transition-[margin-left] duration-200 ease-in-out ' +
-          'p-4 md:p-6 lg:p-8'
+          'transition-[margin-left] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ' +
+          'p-4 md:p-6 lg:p-8 min-h-screen'
         }
       >
-        <Outlet />
+        <div className="page-enter max-w-[1400px]">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

@@ -33,3 +33,7 @@ dist-ssr
 # Reportes de Playwright
 playwright-report/
 test-results/
+
+#infra
+gym-saas-infra
+graphify-out/

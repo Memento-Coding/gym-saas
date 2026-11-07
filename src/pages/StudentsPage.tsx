@@ -152,12 +152,17 @@ export function StudentsPage() {
       {/* Cabecera */}
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Estudiantes</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">Estudiantes</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Gestión de estudiantes del gimnasio.
           </p>
         </div>
-        <MotionButton whileTap={{ scale: 0.97 }} onClick={openCreate}>
+        <MotionButton
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: 'spring', duration: 0.2, bounce: 0 }}
+          onClick={openCreate}
+          className="shrink-0"
+        >
           <Plus /> Nuevo Estudiante
         </MotionButton>
       </header>

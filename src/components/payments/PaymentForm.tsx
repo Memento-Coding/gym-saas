@@ -359,7 +359,12 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
                 <FormItem>
                   <FormLabel>Abono inicial</FormLabel>
                   <FormControl>
-                    <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                    {/*
+                      type="text" + inputMode numérico: la validación la hace
+                      la regla del campo con mensaje claro, sin el bloqueo
+                      silencioso de type="number". Alinea con STEERING_FORMS §1.
+                    */}
+                    <Input type="text" inputMode="numeric" placeholder="0" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
