@@ -172,8 +172,8 @@ export function CourtesiesPage() {
 
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-green-500/10">
-              <Calendar className="size-5 text-green-500" />
+            <div className="flex size-10 items-center justify-center rounded-lg bg-success-50">
+              <Calendar className="size-5 text-success-700" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Activos</p>
@@ -184,8 +184,8 @@ export function CourtesiesPage() {
 
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-orange-500/10">
-              <User className="size-5 text-orange-500" />
+            <div className="flex size-10 items-center justify-center rounded-lg bg-accent-50">
+              <User className="size-5 text-accent-600" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Estudiantes con bono</p>

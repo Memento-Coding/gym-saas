@@ -166,7 +166,7 @@ export function RegisterPage() {
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  <Link to="/login" className="text-primary hover:underline">
+                  <Link to="/login" className="text-primary underline underline-offset-4">
                     ¿Ya tienes cuenta? Inicia sesión
                   </Link>
                 </p>
@@ -206,7 +206,7 @@ export function RegisterPage() {
                       setError('');
                       setCode('');
                     }}
-                    className="text-primary hover:underline"
+                    className="text-primary underline underline-offset-4"
                   >
                     Volver al registro
                   </button>
