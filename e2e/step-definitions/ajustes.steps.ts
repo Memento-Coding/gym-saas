@@ -9,6 +9,7 @@ import { SettingsPage } from '../pages/SettingsPage';
 import { TEST_STUDENT } from '../fixtures/students';
 import { DEFAULT_COMMUNICATION_CONFIG } from '../fixtures/communication';
 import { seedAll, lsGet } from '../helpers/seed';
+import { diasDesdeHoy } from '../helpers/dates';
 
 let settingsPage: SettingsPage;
 
@@ -203,7 +204,7 @@ let planesAntes = 0;
 
 When('intenta agregar el plan {string} con precio {string}', async ({ page }, nombre: string, precio: string) => {
   planesAntes = await page.locator('[aria-label^="Precio del plan "]').count();
-  await page.getByRole('button', { name: 'Agregar plan' }).click();
+  await page.getByRole('button', { name: 'Agregar plan grupal' }).click();
   await page.getByLabel('Nombre del nuevo plan').fill(nombre);
   await page.getByLabel('Precio del nuevo plan').fill(precio);
   await page.getByRole('button', { name: 'Agregar', exact: true }).click();
@@ -212,4 +213,49 @@ When('intenta agregar el plan {string} con precio {string}', async ({ page }, no
 Then('no debería agregarse ningún plan', async ({ page }) => {
   await expect(page.getByRole('alert').first()).toBeVisible();
   expect(await page.locator('[aria-label^="Precio del plan "]').count()).toBe(planesAntes);
+});
+
+// ── Planes y logo ────────────────────────────────────────────────────────────
+
+Given('que el plan {string} tiene un estudiante vigente', async ({ page }, plan: string) => {
+  await seedAll(page, {
+    costs: {
+      memberships: [
+        { id: 'plan-usado', name: plan, price: 90000 },
+        { id: 'plan-libre', name: 'Sin alumnos', price: 50000 },
+      ],
+      personalized: [],
+    },
+    students: [{ ...TEST_STUDENT, planId: 'plan-usado', planName: plan, status: 'active', subscriptionEndDate: diasDesdeHoy(30) }],
+  });
+  settingsPage = new SettingsPage(page);
+});
+
+When('abre la sección de planes', async () => {
+  await settingsPage.tabPlanes.click();
+});
+
+When('intenta subir un logo de {int} KB', async ({ page }, kb: number) => {
+  await settingsPage.irAMarca();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'logo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.alloc(kb * 1024),
+  });
+});
+
+Then('el plan {string} no debería poder eliminarse', async ({ page }, plan: string) => {
+  await expect(page.getByRole('button', { name: `Eliminar plan ${plan}` })).toBeDisabled();
+});
+
+Then('el plan {string} debería poder eliminarse', async ({ page }, plan: string) => {
+  await expect(page.getByRole('button', { name: `Eliminar plan ${plan}` })).toBeEnabled();
+});
+
+Then('debería avisar que el logo es demasiado pesado', async ({ page }) => {
+  await expect(page.getByText(/no puede superar 200 KB/i)).toBeVisible();
+});
+
+Then('no debería mostrarse ningún logo', async ({ page }) => {
+  await expect(page.getByRole('img', { name: /logo de la academia/i })).toHaveCount(0);
 });

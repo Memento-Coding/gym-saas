@@ -120,7 +120,7 @@ export function PaymentHistory({
                   )}
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCOP(payment.amount)}
+                  {formatCOP(payment.amount - (payment.discount ?? 0))}
                 </TableCell>
                 <TableCell className="text-center">
                   <Button

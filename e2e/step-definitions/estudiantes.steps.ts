@@ -122,14 +122,13 @@ When('abre el formulario de nuevo estudiante', async ({}) => {
 });
 
 When(
-  'registra al estudiante {string} {string} con documento {string} plan {string} y vencimiento en {int} días',
-  async ({}, nombres: string, apellidos: string, documento: string, plan: string, dias: number) => {
+  'registra al estudiante {string} {string} con documento {string} plan {string}',
+  async ({}, nombres: string, apellidos: string, documento: string, plan: string) => {
     await studentsPage.registrarEstudiante({
       nombres,
       apellidos,
       documento,
       plan: new RegExp(plan, 'i'),
-      vencimiento: diasDesdeHoy(dias),
     });
   },
 );
@@ -142,13 +141,17 @@ When(
   'intenta registrar un estudiante con {string} igual a {string}',
   async ({}, campo: string, valor: string) => {
     await studentsPage.abrirFormularioNuevoEstudiante();
-    await studentsPage.registrarConCampo(campo, valor.replaceAll('␠', ' '), diasDesdeHoy(30));
+    await studentsPage.registrarConCampo(campo, valor.replaceAll('␠', ' '));
   },
 );
 
 When('intenta registrar otro estudiante con el documento de {string}', async ({}, nombre: string) => {
   await studentsPage.abrirFormularioNuevoEstudiante();
-  await studentsPage.registrarConCampo('Documento', (await guardadoLlamado(nombre)).documentId, diasDesdeHoy(30));
+  await studentsPage.registrarConCampo('Documento', (await guardadoLlamado(nombre)).documentId);
+});
+
+When('escribe {string} en el campo {string}', async ({}, valor: string, campo: string) => {
+  await studentsPage.campo(new RegExp(`^${campo}`, 'i')).pressSequentially(valor);
 });
 
 When('accede al perfil del estudiante {string}', async ({ page }, id: string) => {
@@ -184,6 +187,10 @@ When('intenta eliminar a {string} y cancela', async ({}, nombre: string) => {
 
 Then('debería ver el encabezado del módulo de estudiantes', async ({}) => {
   await expect(studentsPage.heading).toBeVisible();
+});
+
+Then('el campo {string} debería contener {string}', async ({}, campo: string, valor: string) => {
+  await expect(studentsPage.campo(new RegExp(`^${campo}`, 'i'))).toHaveValue(valor);
 });
 
 Then('debería ver a {string} en la lista de estudiantes', async ({}, nombre: string) => {

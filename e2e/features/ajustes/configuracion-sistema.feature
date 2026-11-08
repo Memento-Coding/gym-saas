@@ -114,3 +114,18 @@ Característica: Configuración del sistema
       |        | 50000  |
       | Malo   | -1     |
       | Malo   | abc    |
+
+  @adversarial
+  Escenario: Un plan con estudiantes vigentes no se puede eliminar
+    Dado que el plan "Boxeo" tiene un estudiante vigente
+    Cuando accede al módulo de ajustes
+    Y abre la sección de planes
+    Entonces el plan "Boxeo" no debería poder eliminarse
+    Y el plan "Sin alumnos" debería poder eliminarse
+
+  @adversarial
+  Escenario: Un logo que excede el límite de la API se rechaza
+    Cuando accede al módulo de ajustes
+    Y intenta subir un logo de 300 KB
+    Entonces debería avisar que el logo es demasiado pesado
+    Y no debería mostrarse ningún logo

@@ -13,7 +13,9 @@ Característica: Registro de pagos de membresía
   Escenario: Registrar un pago guarda exactamente un pago y entrega su comprobante
     Cuando confirma un pago del primer plan con descuento "10000"
     Entonces debería existir 1 pago registrado con descuento 10000
-    Y debería haberse descargado un comprobante
+    Y no debería descargarse nada sin pedirlo
+    Y debería poder descargar su comprobante desde el aviso
+    Y debería existir un ingreso por el valor neto del pago
 
   @adversarial
   Esquema del escenario: Un descuento inválido se rechaza sin registrar el pago
@@ -27,6 +29,12 @@ Característica: Registro de pagos de membresía
       | abc         |
       | 1,5         |
       | 99999999    |
+
+  @adversarial
+  Escenario: Una fecha de pago futura no registra el pago
+    Cuando confirma un pago del primer plan con fecha de pago en 5 días
+    Entonces no debería existir ningún pago registrado
+    Y el formulario de pago debería seguir abierto mostrando un error
 
   @adversarial
   Escenario: No se puede registrar un pago sin elegir un plan

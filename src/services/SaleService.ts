@@ -17,6 +17,7 @@
  */
 
 import { getStorageService, type StorageService } from '@/services/storage/StorageService';
+import { FinanceService } from '@/services/FinanceService';
 import type { AppMeta } from '@/types/settings';
 import type { PaymentMethod } from '@/types/payment';
 import type {
@@ -339,6 +340,20 @@ export class SaleService {
     const sales = (await storage.get<Sale[]>(SALES_KEY)) ?? [];
     sales.push(sale);
     await storage.set<Sale[]>(SALES_KEY, sales);
+
+    // En un crédito solo entra a caja el abono inicial.
+    const income = input.type === 'credit' ? (input.credit?.initialPayment ?? 0) : total;
+    if (income > 0) {
+      await new FinanceService(storage).create({
+        type: 'income',
+        date: sale.date,
+        concept: `Venta a ${input.clientName}`,
+        category: 'Ventas',
+        amount: income,
+        box: 'almacen',
+        method: input.method,
+      });
+    }
 
     return { success: true, data: sale };
   }

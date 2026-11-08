@@ -39,10 +39,13 @@ import type { PaymentInput } from '@/services/PaymentService';
 import type { PaymentMethod, PaymentSplit } from '@/types/payment';
 import type { MembershipPlan } from '@/types/membership';
 import {
-  toIsoDateUTC,
+  computeSubscriptionEndDate,
+  isValidIsoDate,
+  pastDateSchema,
   selectFromSource,
   copAmount,
   textSchema,
+  todayLocalIso,
 } from '@/utils/validation';
 
 const PAYMENT_STATUSES = ['paid', 'upgrade', 'credit'] as const;
@@ -62,6 +65,7 @@ const INSTALLMENT_OPTIONS = [
 ] as const;
 
 interface PaymentFormValues {
+  date: string;
   planId: string;
   method: PaymentMethod;
   status: PaymentInput['status'];
@@ -73,13 +77,11 @@ interface PaymentFormValues {
 
 interface PaymentFormProps {
   studentId: string;
+  /** Vencimiento actual del estudiante, para anticipar cómo queda tras el pago. */
+  currentEndDate?: string;
   /** Recibe el PaymentInput ensamblado; la persistencia la hace el padre (usePayments). */
   onSubmit: (input: PaymentInput) => Promise<void> | void;
   submitting?: boolean;
-}
-
-function todayISO(): string {
-  return toIsoDateUTC(new Date());
 }
 
 /**
@@ -95,6 +97,7 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
     .object({
       // Select validado contra el catálogo real de planes.
       planId: selectFromSource(allPlans, (p) => p.id, 'El plan'),
+      date: pastDateSchema('La fecha de pago'),
       status: z.enum(PAYMENT_STATUSES),
       method: z.enum(PAYMENT_METHODS),
       // Monto monetario: sin texto, sin negativos (STEERING_FORMS §1).
@@ -132,7 +135,7 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
     });
 }
 
-export function PaymentForm({ studentId, onSubmit, submitting = false }: PaymentFormProps) {
+export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = false }: PaymentFormProps) {
   const { groupPlans, personalizedPlans, getPlanById } = useMemberships();
 
   const [splitEnabled, setSplitEnabled] = useState(false);
@@ -158,6 +161,7 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
     resolver,
     mode: 'onSubmit',
     defaultValues: {
+      date: todayLocalIso(),
       planId: '',
       method: 'Efectivo',
       status: 'paid',
@@ -179,6 +183,12 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
   const net = Math.max(0, price - discount);
 
   const isCredit = status === 'credit';
+
+  const paymentDate = form.watch('date');
+  const newEndDate =
+    selected && currentEndDate && isValidIsoDate(paymentDate) && isValidIsoDate(currentEndDate)
+      ? computeSubscriptionEndDate(currentEndDate, paymentDate, status, selected.plan)
+      : null;
 
   const handleSubmit = form.handleSubmit(async (values) => {
     const found = getPlanById(values.planId);
@@ -203,7 +213,7 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
 
     const input: PaymentInput = {
       studentId,
-      date: todayISO(),
+      date: values.date,
       amount: found.plan.price,
       method: values.method,
       splits: splitEnabled ? splits : undefined,
@@ -262,6 +272,21 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
                   ))}
                 </SelectContent>
               </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Fecha del pago */}
+        <FormField
+          control={form.control}
+          name="date"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Fecha de pago</FormLabel>
+              <FormControl>
+                <Input type="date" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -417,6 +442,15 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
           <span className="text-muted-foreground">Total a pagar</span>
           <span className="font-semibold text-secondary-900">{formatCOP(net)}</span>
         </div>
+
+        {newEndDate && (
+          <div className="flex items-center justify-between rounded-lg bg-secondary-50 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Vencimiento después del pago</span>
+            <span className="font-semibold text-secondary-900" data-testid="payment-new-end-date">
+              {newEndDate.split('-').reverse().join('/')}
+            </span>
+          </div>
+        )}
 
         {form.formState.errors.root && (
           <p role="alert" className="text-sm text-error-700">

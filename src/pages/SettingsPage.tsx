@@ -122,7 +122,7 @@ export function SettingsPage() {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="branding">
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="branding">
             <Palette className="size-4 mr-1.5" />
             Marca

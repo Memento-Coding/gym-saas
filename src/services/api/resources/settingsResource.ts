@@ -38,7 +38,15 @@ interface ApiFormField {
 }
 
 interface ApiSettings {
-  branding?: { logo?: string; wordmark?: string; tagline?: string };
+  branding?: {
+    logo?: string;
+    wordmark?: string;
+    tagline?: string;
+    taxId?: string;
+    address?: string;
+    phone?: string;
+    receiptNote?: string;
+  };
   plans?: ApiPlan[];
   formFields?: ApiFormField[];
   communicationConfig?: Record<string, unknown>;
@@ -116,6 +124,10 @@ export class SettingsResource {
       logo: s.branding?.logo ?? null,
       wordmark: s.branding?.wordmark ?? null,
       tagline: s.branding?.tagline ?? null,
+      taxId: s.branding?.taxId,
+      address: s.branding?.address,
+      phone: s.branding?.phone,
+      receiptNote: s.branding?.receiptNote,
     };
   }
 
@@ -124,6 +136,10 @@ export class SettingsResource {
       logo: b.logo ?? '',
       wordmark: b.wordmark ?? '',
       tagline: b.tagline ?? '',
+      taxId: b.taxId,
+      address: b.address,
+      phone: b.phone,
+      receiptNote: b.receiptNote,
     };
   }
 

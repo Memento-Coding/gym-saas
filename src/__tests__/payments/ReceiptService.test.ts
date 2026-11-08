@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ReceiptService } from '@/services/ReceiptService';
+import { ReceiptService, receiptBranding } from '@/services/ReceiptService';
 import type { Payment } from '@/types/payment';
 import type { ReceiptClientInfo, ReceiptData } from '@/services/ReceiptService';
 
@@ -122,13 +122,13 @@ describe('ReceiptService', () => {
       expect(result.receiptNo).toBe('GOP-0001');
       expect(result.date).toBe('2025-06-15');
       expect(result.client).toEqual(client);
-      expect(result.total).toBe(100000);
+      expect(result.total).toBe(90000); // amount es bruto: 100000 - 10000
       expect(result.discount).toBe(10000);
       expect(result.discountReason).toBe('Pronto pago');
       expect(result.method).toBe('Efectivo');
       expect(result.items).toHaveLength(1);
       expect(result.items[0].concept).toContain('Premium');
-      expect(result.items[0].unitPrice).toBe(110000); // amount + discount
+      expect(result.items[0].unitPrice).toBe(100000);
     });
 
     it('should use SIN-NUMERO when receiptNo is undefined', () => {
@@ -193,6 +193,32 @@ describe('ReceiptService', () => {
 
       expect(result.items[0].concept).toContain('Entrenamiento personalizado');
       expect(result.items[0].concept).toContain('3/sem');
+    });
+  });
+
+  describe('generateBatchPdf y datos del gimnasio', () => {
+    it('genera una página por comprobante', () => {
+      const doc = ReceiptService.generateBatchPdf([makeReceiptData(), makeReceiptData(), makeReceiptData()]);
+      expect(doc.getNumberOfPages()).toBe(3);
+    });
+
+    it('sin marca configurada no usa el nombre de otro gimnasio', () => {
+      const text = String(ReceiptService.generatePdf(makeReceiptData({ academyName: undefined })).output());
+      expect(text).toContain('GymOps');
+      expect(text).not.toContain('Meraki');
+    });
+
+    it('imprime NIT, dirección, teléfono y mensaje', () => {
+      const text = String(
+        ReceiptService.generatePdf(
+          makeReceiptData({
+            ...receiptBranding({ logo: null, wordmark: 'Fuerza', tagline: null, taxId: '900123456-7', address: 'Calle 1', phone: '3001234567', receiptNote: 'Gracias' }),
+          }),
+        ).output(),
+      );
+      for (const expected of ['Fuerza', 'NIT 900123456-7', 'Calle 1', 'Tel. 3001234567', 'Gracias']) {
+        expect(text).toContain(expected);
+      }
     });
   });
 

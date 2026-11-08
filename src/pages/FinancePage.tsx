@@ -27,6 +27,7 @@ import { FinanceMovements } from '@/components/finance/FinanceMovements';
 import { TransferForm } from '@/components/finance/TransferForm';
 import { SalesTab } from '@/components/sales/SalesTab';
 import { InventoryTab } from '@/components/inventory/InventoryTab';
+import { ReceiptsTab } from '@/components/finance/ReceiptsTab';
 import { useFinance } from '@/hooks/useFinance';
 import { FinanceService } from '@/services/FinanceService';
 
@@ -105,6 +106,9 @@ export function FinancePage() {
               {tab.label}
             </TabsTrigger>
           ))}
+          <TabsTrigger value="comprobantes" className="rounded-lg">
+            Comprobantes
+          </TabsTrigger>
         </TabsList>
 
         {FINANCE_TABS.map((tab) => {
@@ -147,6 +151,9 @@ export function FinancePage() {
             </TabsContent>
           );
         })}
+        <TabsContent value="comprobantes" className="mt-4">
+          <ReceiptsTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
