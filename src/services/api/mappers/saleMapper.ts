@@ -113,7 +113,7 @@ export function saleToApi(sale: Sale): Record<string, unknown> {
       name: it.name,
       quantity: it.quantity,
       price: it.unitPrice,
-      type: 'product',
+      type: it.kind ?? 'product',
     })),
   };
 

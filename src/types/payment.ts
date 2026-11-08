@@ -22,4 +22,6 @@ export interface Payment {
   discount: number;
   discountReason: string;
   receiptNo?: string;
+  /** Solo en modo API: la API lista los pagos de todos los alumnos. */
+  studentId?: string;
 }

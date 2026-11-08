@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
-import { SaleService, type CreateSaleInput } from '@/services/SaleService';
+import { SaleService, buildCreditPlan, type CreateSaleInput } from '@/services/SaleService';
 import { InventoryService, type ServiceResult } from '@/services/InventoryService';
 import type { Sale, SaleItem } from '@/types/sale';
 import { isApiMode } from '@/config/env';
@@ -87,6 +87,7 @@ export function useSales(): UseSalesReturn {
       setError(null);
 
       const saleItems: SaleItem[] = input.items.map((line) => ({
+        kind: line.kind,
         inventoryId: line.inventoryId,
         name: line.name,
         quantity: line.quantity,
@@ -110,7 +111,10 @@ export function useSales(): UseSalesReturn {
             type: input.type,
             method: input.method,
             receiptNo: '',
-            creditPlan: undefined,
+            creditPlan:
+              input.type === 'credit'
+                ? buildCreditPlan(total, input.credit?.initialPayment ?? 0, input.credit ?? { type: 'single' })
+                : undefined,
           };
           const created = await createApiSale(draft);
           await refreshData();

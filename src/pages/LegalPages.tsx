@@ -9,8 +9,9 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-// TODO(legal): confirmar razón social, NIT y correo de contacto reales.
+// Persona natural responsable mientras no exista una empresa constituida.
 const OPERATOR = 'GymOps';
+const RESPONSIBLE = 'Jhoan Sebastian Rojas';
 const CONTACT_EMAIL = 'privacidad@gym-ops.fit';
 const UPDATED = '8 de noviembre de 2026';
 
@@ -42,7 +43,7 @@ export function PrivacyPage() {
         Cada gimnasio que usa {OPERATOR} es el <strong>responsable</strong> de los datos de sus alumnos y
         clientes. {OPERATOR} actúa como <strong>encargado</strong>: los almacena y procesa por cuenta del
         gimnasio y solo para prestar el servicio. Para los datos de las cuentas de usuario (personal del
-        gimnasio), {OPERATOR} es el responsable. Contacto: {contact}.
+        gimnasio), el responsable es {RESPONSIBLE}, persona natural que opera {OPERATOR}. Contacto: {contact}.
       </p>
 
       <h2>2. Datos que tratamos</h2>
@@ -137,7 +138,10 @@ export function TermsPage() {
       </p>
 
       <h2>7. Ley aplicable y contacto</h2>
-      <p>Estas condiciones se rigen por las leyes de Colombia. Contacto: {contact}.</p>
+      <p>
+        {OPERATOR} es operado por {RESPONSIBLE}. Estas condiciones se rigen por las leyes de Colombia.
+        Contacto: {contact}.
+      </p>
     </LegalLayout>
   );
 }

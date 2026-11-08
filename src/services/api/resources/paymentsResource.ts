@@ -20,7 +20,12 @@
 import { api } from '../apiClient';
 import type { ResourceHandler } from './types';
 import type { Payment } from '@/types/payment';
-import { apiToPayment, paymentToApi, type ApiPayment } from '../mappers/paymentMapper';
+import {
+  apiToPayment,
+  paymentToApi,
+  type ApiPayment,
+  type PaymentApiExtras,
+} from '../mappers/paymentMapper';
 
 /**
  * Crea un pago real contra la API, incluyendo el studentId (no presente en el
@@ -32,8 +37,9 @@ import { apiToPayment, paymentToApi, type ApiPayment } from '../mappers/paymentM
 export async function createApiPayment(
   payment: Payment,
   studentId: string,
+  extras?: PaymentApiExtras,
 ): Promise<Payment> {
-  const created = await api.post<ApiPayment>('/payments', paymentToApi(payment, studentId));
+  const created = await api.post<ApiPayment>('/payments', paymentToApi(payment, studentId, extras));
   return apiToPayment(created);
 }
 
