@@ -81,7 +81,8 @@ export function derivePaymentStatus(
 /** Formatea una fecha ISO (YYYY-MM-DD) a formato local legible. Vacío si inválida. */
 export function formatDate(iso: string | undefined): string {
   if (!iso) return '—';
-  const date = new Date(iso);
+  // Sin hora, Date interpreta UTC y en Colombia se mostraría el día anterior.
+  const date = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('es-CO', {
     year: 'numeric',

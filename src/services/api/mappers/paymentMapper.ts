@@ -102,7 +102,7 @@ export function paymentToApi(payment: Payment, studentId: string): Record<string
 
   if (payment.discount > 0) {
     body.discount = {
-      type: 'amount',
+      type: 'fixed',
       value: payment.discount,
       reason: payment.discountReason,
     };

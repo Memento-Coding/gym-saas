@@ -70,6 +70,9 @@ export function StudentProfile({
   const [freezeReason, setFreezeReason] = useState('');
   const [freezeDays, setFreezeDays] = useState('30');
 
+  const [freezeReasonError, setFreezeReasonError] = useState('');
+  const [freezeDaysError, setFreezeDaysError] = useState('');
+
   if (!student) return null;
 
   const isFrozen = student.status === 'frozen';
@@ -78,8 +81,6 @@ export function StudentProfile({
   const canFreeze =
     student.status === 'active' && (payment === 'al_dia' || payment === 'por_vencer');
 
-  const [freezeReasonError, setFreezeReasonError] = useState('');
-  const [freezeDaysError, setFreezeDaysError] = useState('');
 
   const handleConfirmFreeze = async () => {
     // Validación inline con mensajes en el campo, no toast (STEERING_FORMS §6).
