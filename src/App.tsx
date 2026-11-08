@@ -19,6 +19,7 @@ import { MainLayout } from '@/components/layout';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { PrivacyPage, TermsPage } from '@/pages/LegalPages';
 
 // Protected pages
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -39,6 +40,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/registro" element={<RegisterPage />} />
           <Route path="/recuperar-password" element={<ForgotPasswordPage />} />
+          <Route path="/privacidad" element={<PrivacyPage />} />
+          <Route path="/terminos" element={<TermsPage />} />
 
           {/* Protected routes — require authentication */}
           <Route element={<ProtectedRoute />}>
