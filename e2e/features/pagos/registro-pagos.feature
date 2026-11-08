@@ -13,7 +13,9 @@ Característica: Registro de pagos de membresía
   Escenario: Registrar un pago guarda exactamente un pago y entrega su comprobante
     Cuando confirma un pago del primer plan con descuento "10000"
     Entonces debería existir 1 pago registrado con descuento 10000
-    Y debería haberse descargado un comprobante
+    Y no debería descargarse nada sin pedirlo
+    Y debería poder descargar su comprobante desde el aviso
+    Y debería existir un ingreso por el valor neto del pago
 
   @adversarial
   Esquema del escenario: Un descuento inválido se rechaza sin registrar el pago
@@ -29,6 +31,12 @@ Característica: Registro de pagos de membresía
       | 99999999    |
 
   @adversarial
+  Escenario: Una fecha de pago futura no registra el pago
+    Cuando confirma un pago del primer plan con fecha de pago en 5 días
+    Entonces no debería existir ningún pago registrado
+    Y el formulario de pago debería seguir abierto mostrando un error
+
+  @adversarial
   Escenario: No se puede registrar un pago sin elegir un plan
     Cuando confirma el pago sin elegir un plan
     Entonces no debería existir ningún pago registrado
@@ -38,3 +46,30 @@ Característica: Registro de pagos de membresía
   Escenario: Un doble clic en confirmar registra un solo pago
     Cuando confirma con doble clic un pago del primer plan
     Entonces debería existir 1 pago registrado con descuento 0
+
+  @critico
+  Escenario: Un pago dividido que suma el total se registra con sus partes
+    Cuando confirma un pago del primer plan dividido en dos partes que suman el total
+    Entonces debería existir 1 pago registrado con 2 partes
+
+  @adversarial
+  Escenario: Un pago dividido que no suma el total se rechaza
+    Cuando confirma un pago del primer plan dividido en dos partes que no suman el total
+    Entonces no debería existir ningún pago registrado
+
+  @regresion
+  Escenario: Un pago a crédito se registra con su abono
+    Cuando confirma un pago a crédito del primer plan con abono "1000"
+    Entonces debería existir 1 pago registrado a crédito
+
+  @adversarial
+  Esquema del escenario: Un abono inválido no registra el crédito
+    Cuando confirma un pago a crédito del primer plan con abono "<abono>"
+    Entonces no debería existir ningún pago registrado
+    Y el formulario de pago debería seguir abierto mostrando un error
+
+    Ejemplos:
+      | abono    |
+      | -1       |
+      | abc      |
+      | 99999999 |

@@ -53,7 +53,7 @@ valida también en la Lambda.
 3. **`Entonces` comprueba el estado guardado**, no solo un mensaje o que un formulario se abrió.
 4. **Un ataque comprueba que nada cambió**: sin registro nuevo, stock igual, vencimiento igual.
 5. **Sin fechas literales**: "vencimiento en 30 días". Una fecha fija se convierte en bug al pasar el tiempo.
-6. **Lenguaje de negocio**: "registra un pago", no "hace clic en el botón azul".
+6. **Lenguaje de negocio**: "registra un pago", no describir elementos de la pantalla (lo revisa `check-test-standard`).
 7. **Muchos datos, un `Esquema del escenario`** con `Ejemplos`.
 8. **Abrir una pantalla no es un escenario `@critico`.**
 
@@ -66,6 +66,7 @@ valida también en la Lambda.
 | `@critico` | Flujo principal del negocio |
 | `@regresion` | Casos secundarios |
 | `@adversarial` | Intentos de romper la funcionalidad |
+| `@sin-sesion` | Corre con el login real activo y Cognito simulado (`e2e/helpers/cognito.ts`) |
 | `@fixme` | Bug real conocido, con comentario encima que lo explique |
 
 Un escenario adversario que falla por un bug real **nunca se borra ni se suaviza**: se
@@ -86,5 +87,6 @@ corrige el bug o se marca `@fixme` con su explicación, y se quita al corregirlo
 ## 7. Cómo se hace cumplir
 
 CI ejecuta `scripts/check-test-standard.mjs` y la suite E2E antes de desplegar. Una página
-nueva sin feature, un módulo sin `@adversarial` o una fecha literal **bloquean el PR**. En
+nueva sin feature, un módulo sin `@adversarial`, una fecha literal, un paso que ignora un
+dato del escenario o lenguaje de interfaz **bloquean el PR**. En
 infra, `internal/conventions` exige lo mismo para cada Lambda que escribe.

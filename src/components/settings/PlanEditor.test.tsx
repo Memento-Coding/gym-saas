@@ -139,7 +139,7 @@ describe('PlanEditor — guardado', () => {
 
 describe('PlanEditor — crear planes', () => {
   async function fillNewPlan(user: ReturnType<typeof userEvent.setup>, name: string, price: string) {
-    await user.click(screen.getByRole('button', { name: /agregar plan/i }));
+    await user.click(screen.getByRole('button', { name: /agregar plan grupal/i }));
     await user.type(screen.getByLabelText(/nombre del nuevo plan/i), name);
     if (price) await user.type(screen.getByLabelText(/precio del nuevo plan/i), price);
     await user.click(screen.getByRole('button', { name: /^agregar$/i }));
@@ -219,5 +219,50 @@ describe('PlanEditor — eliminar planes', () => {
       personalized: [],
     });
     expect(eliminar('Unico')).toBeDisabled();
+  });
+});
+
+describe('PlanEditor — claridad y cambios sin guardar', () => {
+  it('explica en una frase qué significa cada forma de cobro', () => {
+    renderEditor(undefined, {
+      memberships: [
+        { id: 'a', name: 'Mensual', price: 110000, classesPerMonth: 12 },
+        { id: 'b', name: 'Suelta', price: 20000, single: true },
+      ],
+      personalized: [],
+    });
+    expect(screen.getByText(/\$110\.000 al mes\. Cada pago suma un mes al vencimiento\. Incluye 12 clases\./)).toBeInTheDocument();
+    expect(screen.getByText(/\$20\.000 por clase\. El pago no cambia la fecha de vencimiento\./)).toBeInTheDocument();
+  });
+
+  it('sin cambios no ofrece guardar; descartar vuelve a lo guardado', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderEditor();
+    expect(screen.queryByRole('button', { name: /guardar planes/i })).toBeNull();
+
+    const price = screen.getByLabelText(/precio del plan plan-mensual/i);
+    fireEvent.change(price, { target: { value: '5' } });
+    await user.click(screen.getByRole('button', { name: /descartar cambios/i }));
+
+    expect(price).toHaveValue('110000');
+    expect(screen.queryByRole('button', { name: /guardar planes/i })).toBeNull();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('tras guardar deja de haber cambios pendientes', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    fireEvent.change(screen.getByLabelText(/precio del plan plan-mensual/i), { target: { value: '5' } });
+    await user.click(screen.getByRole('button', { name: /guardar planes/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /guardar planes/i })).toBeNull(),
+    );
+  });
+
+  it('valida las clases al mes de un plan existente', async () => {
+    renderEditor();
+    fireEvent.change(screen.getByLabelText(/clases al mes del plan plan-mensual/i), { target: { value: '101' } });
+    expect(await screen.findByText(/las clases al mes debe estar entre 1 y 100/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /guardar planes/i })).toBeDisabled();
   });
 });

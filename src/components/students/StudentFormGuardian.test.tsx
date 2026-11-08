@@ -105,40 +105,18 @@ describe('Formulario guardián — renderizado condicional', () => {
 // =============================================================================
 
 describe('Formulario guardián — validación numérica estricta', () => {
-  it('rechaza guardianDocument con letras y bloquea el submit', async () => {
+  it.each([
+    ['letras', '12AB34', '1234'],
+    ['caracteres especiales', '12-34-56', '123456'],
+  ])('no deja escribir %s en guardianDocument', async (_caso, escrito, resultado) => {
     const user = userEvent.setup();
-    const { onSubmit } = renderMinorForm();
+    renderMinorForm();
 
-    await user.type(screen.getByLabelText(/nombres/i), 'Pedro');
-    await user.type(getStudentDocInput(), '1012345678');
     await activateMinor(user);
-    await user.type(screen.getByLabelText(/nombre del acudiente/i), 'Ana');
-    await user.type(screen.getByLabelText(/documento del acudiente/i), '12AB34');
+    const doc = screen.getByLabelText(/documento del acudiente/i);
+    await user.type(doc, escrito);
 
-    await user.click(screen.getByRole('button', { name: /guardar/i }));
-
-    expect(
-      await screen.findByText(/solo puede contener números/i),
-    ).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('rechaza guardianDocument con caracteres especiales', async () => {
-    const user = userEvent.setup();
-    const { onSubmit } = renderMinorForm();
-
-    await user.type(screen.getByLabelText(/nombres/i), 'Pedro');
-    await user.type(getStudentDocInput(), '1012345678');
-    await activateMinor(user);
-    await user.type(screen.getByLabelText(/nombre del acudiente/i), 'Ana');
-    await user.type(screen.getByLabelText(/documento del acudiente/i), '12-34-56');
-
-    await user.click(screen.getByRole('button', { name: /guardar/i }));
-
-    expect(
-      await screen.findByText(/solo puede contener números/i),
-    ).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(doc).toHaveValue(resultado);
   });
 
   it('acepta guardianDocument con una cédula válida', async () => {

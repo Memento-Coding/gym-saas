@@ -55,3 +55,9 @@ export const TEST_MINOR_STUDENT = {
   guardianDocument: '111222333',
   dateOfBirth: '2012-03-20',
 };
+
+/** Copia un estudiante con el nombre que indica el escenario. */
+export function conNombre<T extends object>(base: T, nombre: string): T & { firstName: string; lastName: string } {
+  const [firstName, ...resto] = nombre.split(' ');
+  return { ...base, firstName, lastName: resto.join(' ') };
+}

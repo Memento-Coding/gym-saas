@@ -9,9 +9,9 @@ Característica: Gestión de comunicación con estudiantes
   Escenario: Administrador accede al módulo de comunicación y ve las secciones disponibles
     Dado que existe un estudiante registrado
     Cuando accede al módulo de comunicación
-    Entonces debería ver la pestaña de plantillas
-    Y debería ver la pestaña de canales
-    Y debería ver la pestaña de envío
+    Entonces debería ver la sección de plantillas
+    Y debería ver la sección de canales
+    Y debería ver la sección de envío
 
   @smoke
   Escenario: El módulo muestra las plantillas de comunicación predeterminadas
@@ -40,7 +40,7 @@ Característica: Gestión de comunicación con estudiantes
   Escenario: El módulo muestra los canales de comunicación disponibles
     Dado que existe un estudiante registrado
     Cuando accede al módulo de comunicación
-    Y navega a la pestaña de canales
+    Y entra a la sección de canales
     Entonces debería ver el canal "Email"
     Y debería ver el canal "Telegram"
     Y debería ver el canal "WhatsApp"
@@ -50,22 +50,22 @@ Característica: Gestión de comunicación con estudiantes
   Escenario: Administrador no puede enviar un mensaje sin seleccionar una plantilla
     Dado que existe un estudiante registrado
     Cuando accede al módulo de comunicación
-    Y navega a la pestaña de envío
-    Entonces el botón de enviar debería estar deshabilitado
+    Y entra a la sección de envío
+    Entonces no debería poder enviar el mensaje
 
   @regresion
   Escenario: Administrador selecciona todos los estudiantes con un clic
     Dado que existe un estudiante registrado
     Cuando accede al módulo de comunicación
-    Y navega a la pestaña de envío
+    Y entra a la sección de envío
     Y selecciona todos los estudiantes
-    Entonces el botón debería cambiar a deseleccionar todos
+    Entonces todos los estudiantes deberían quedar seleccionados
 
   @regresion
   Escenario: Administrador previsualiza un mensaje antes de enviarlo
     Dado que existe un estudiante registrado
     Cuando accede al módulo de comunicación
-    Y navega a la pestaña de envío
+    Y entra a la sección de envío
     Y selecciona la plantilla "Aviso de vencimiento"
     Entonces debería ver la opción de previsualizar el mensaje para el estudiante
     Y al previsualizar debería ver el nombre del estudiante resuelto en el mensaje

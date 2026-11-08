@@ -14,6 +14,7 @@
 import { jsPDF } from 'jspdf';
 import type { Payment, PaymentMethod } from '@/types/payment';
 import type { PaymentCreditPlan } from '@/services/PaymentService';
+import type { BrandingConfig } from '@/types/settings';
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -49,6 +50,10 @@ export interface ReceiptData {
   creditPlan?: PaymentCreditPlan;
   academyName?: string;
   academyLogo?: string; // Base64 data URL del logo
+  taxId?: string;
+  address?: string;
+  phone?: string;
+  note?: string;
 }
 
 /** Configuración del estilo del PDF */
@@ -74,7 +79,20 @@ const STYLE: PdfStyle = {
   lineHeight: 6,
 };
 
-const DEFAULT_ACADEMY_NAME = 'Meraki Academia de Artes Marciales';
+const DEFAULT_ACADEMY_NAME = 'GymOps';
+
+/** Datos del gimnasio configurados en Ajustes, listos para mezclar en un comprobante. */
+export function receiptBranding(branding: BrandingConfig | null): Partial<ReceiptData> {
+  if (!branding) return {};
+  return {
+    academyName: branding.wordmark || undefined,
+    academyLogo: branding.logo || undefined,
+    taxId: branding.taxId,
+    address: branding.address,
+    phone: branding.phone,
+    note: branding.receiptNote,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Service
@@ -116,12 +134,26 @@ export class ReceiptService {
    * Genera el documento jsPDF con todo el contenido del comprobante.
    */
   static generatePdf(data: ReceiptData): jsPDF {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
+    const doc = ReceiptService.newDocument();
+    ReceiptService.drawReceipt(doc, data);
+    return doc;
+  }
 
+  /** Un solo PDF con un comprobante por página. */
+  static generateBatchPdf(receipts: ReceiptData[]): jsPDF {
+    const doc = ReceiptService.newDocument();
+    receipts.forEach((data, index) => {
+      if (index > 0) doc.addPage();
+      ReceiptService.drawReceipt(doc, data);
+    });
+    return doc;
+  }
+
+  private static newDocument(): jsPDF {
+    return new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  }
+
+  private static drawReceipt(doc: jsPDF, data: ReceiptData): void {
     const pageWidth = doc.internal.pageSize.getWidth();
     let y = STYLE.margin;
 
@@ -155,9 +187,7 @@ export class ReceiptService {
     }
 
     // --- Pie de página ---
-    ReceiptService.drawFooter(doc, pageWidth);
-
-    return doc;
+    ReceiptService.drawFooter(doc, pageWidth, data.note);
   }
 
   // ---------------------------------------------------------------------------
@@ -176,7 +206,8 @@ export class ReceiptService {
     // Logo (si existe)
     if (data.academyLogo) {
       try {
-        doc.addImage(data.academyLogo, 'PNG', STYLE.margin, y, 30, 30);
+        const format = data.academyLogo.startsWith('data:image/jp') ? 'JPEG' : 'PNG';
+        doc.addImage(data.academyLogo, format, STYLE.margin, y, 30, 30);
       } catch {
         // Si falla el logo, continuamos sin él
       }
@@ -195,6 +226,19 @@ export class ReceiptService {
     doc.setTextColor(...STYLE.secondaryColor);
     doc.text('Comprobante de Pago', textX, y + 14);
 
+    // Datos del gimnasio
+    const issuer = [
+      data.taxId && `NIT ${data.taxId}`,
+      data.address,
+      data.phone && `Tel. ${data.phone}`,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+    if (issuer) {
+      doc.setFontSize(8);
+      doc.text(issuer, textX, y + 19);
+    }
+
     // Número de comprobante (derecha)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
@@ -208,7 +252,7 @@ export class ReceiptService {
     const formattedDate = ReceiptService.formatDate(data.date);
     doc.text(formattedDate, pageWidth - STYLE.margin, y + 14, { align: 'right' });
 
-    return y + (data.academyLogo ? 32 : 20);
+    return y + (data.academyLogo ? 32 : issuer ? 24 : 20);
   }
 
   private static drawClientInfo(
@@ -437,7 +481,7 @@ export class ReceiptService {
     return y;
   }
 
-  private static drawFooter(doc: jsPDF, pageWidth: number): void {
+  private static drawFooter(doc: jsPDF, pageWidth: number, note?: string): void {
     const pageHeight = doc.internal.pageSize.getHeight();
     const y = pageHeight - 15;
 
@@ -455,7 +499,7 @@ export class ReceiptService {
       { align: 'center' },
     );
     doc.text(
-      'Conserve este documento como soporte de su transacción.',
+      note || 'Conserve este documento como soporte de su transacción.',
       pageWidth / 2,
       y + 4,
       { align: 'center' },
@@ -497,8 +541,8 @@ export class ReceiptService {
       {
         concept: `${payment.category === 'mensualidad' ? 'Membresía' : 'Entrenamiento personalizado'} — ${payment.planName}`,
         quantity: 1,
-        unitPrice: payment.amount + payment.discount,
-        subtotal: payment.amount + payment.discount,
+        unitPrice: payment.amount,
+        subtotal: payment.amount,
       },
     ];
 
@@ -509,7 +553,8 @@ export class ReceiptService {
       items,
       discount: payment.discount,
       discountReason: payment.discountReason || undefined,
-      total: payment.amount,
+      // `amount` es el valor bruto; el descuento ya se muestra aparte.
+      total: payment.amount - payment.discount,
       method: payment.method,
       splits: payment.splits,
       creditPlan,

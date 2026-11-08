@@ -21,7 +21,7 @@ Característica: Gestión de estudiantes
   Escenario: Administrador registra un nuevo estudiante
     Cuando accede al módulo de estudiantes
     Y abre el formulario de nuevo estudiante
-    Y registra al estudiante "Carlos" "López" con documento "50607080" plan "Básico" y vencimiento en 30 días
+    Y registra al estudiante "Carlos" "López" con documento "50607080" plan "Básico"
     Entonces debería ver la confirmación de que el estudiante fue registrado
     Y debería ver a "Carlos López" en la lista de estudiantes
     Y debería existir 1 estudiante guardado con documento "50607080"
@@ -83,9 +83,21 @@ Característica: Gestión de estudiantes
       | Teléfono    | no-es-numero |
       | Email       | no-es-correo |
       | Mensualidad | -5           |
-      | Mensualidad | gratis       |
-      | Vencimiento |              |
+      | Mensualidad | 1.5          |
+      | Fecha de pago |            |
       | Nombres     | ␠␠␠          |
+
+  @adversarial
+  Esquema del escenario: Un campo numérico no deja escribir letras
+    Cuando accede al módulo de estudiantes
+    Y abre el formulario de nuevo estudiante
+    Y escribe "<escrito>" en el campo "<campo>"
+    Entonces el campo "<campo>" debería contener "<queda>"
+
+    Ejemplos:
+      | campo       | escrito | queda |
+      | Documento   | 12AB34  | 1234  |
+      | Mensualidad | gratis  |       |
 
   @adversarial
   Escenario: No se puede registrar dos veces el mismo documento
@@ -132,6 +144,21 @@ Característica: Gestión de estudiantes
       | Viaje  | 0    |
       | Viaje  | -5   |
       | Viaje  | abc  |
+
+  @critico
+  Escenario: Congelar una membresía la deja congelada y correr el vencimiento
+    Dado que existe el estudiante "Ana García" registrado
+    Cuando accede al módulo de estudiantes
+    Y intenta congelar a "Ana García" con motivo "Viaje" por "30" días
+    Entonces "Ana García" debería quedar congelada
+    Y el vencimiento de "Ana García" debería correrse 30 días
+
+  @regresion
+  Escenario: Eliminar un estudiante tras confirmar lo quita de la lista
+    Dado que existe el estudiante "Ana García" registrado
+    Cuando accede al módulo de estudiantes
+    Y elimina a "Ana García" confirmando la acción
+    Entonces no debería existir ningún estudiante guardado
 
   @adversarial
   Escenario: Cancelar la eliminación conserva al estudiante

@@ -6,7 +6,7 @@
 import { expect, type Page } from '@playwright/test';
 import { Given, When, Then } from '../support/world';
 import { ConsentPage } from '../pages/ConsentPage';
-import { TEST_STUDENT, TEST_MINOR_STUDENT } from '../fixtures/students';
+import { TEST_STUDENT, TEST_MINOR_STUDENT, conNombre } from '../fixtures/students';
 import { DEFAULT_CONSENT_CONFIG, signedConsentFor, unsignedConsent } from '../fixtures/consent';
 import { lsGet, seedAll } from '../helpers/seed';
 
@@ -29,41 +29,41 @@ Given('que hay un estudiante registrado en el sistema', async ({ page }) => {
   consentPage = new ConsentPage(page);
 });
 
-Given('que el estudiante {string} no ha firmado el consentimiento', async ({ page }, _nombre: string) => {
+Given('que el estudiante {string} no ha firmado el consentimiento', async ({ page }, nombre: string) => {
   await seedAll(page, {
     consent_config: DEFAULT_CONSENT_CONFIG,
-    students: [{ ...TEST_STUDENT, consent: unsignedConsent }],
+    students: [{ ...conNombre(TEST_STUDENT, nombre), consent: unsignedConsent }],
   });
   consentPage = new ConsentPage(page);
 });
 
 Given(
   'que el estudiante {string} ha firmado el consentimiento en la versión vigente',
-  async ({ page }, _nombre: string) => {
+  async ({ page }, nombre: string) => {
     await seedAll(page, {
       consent_config: DEFAULT_CONSENT_CONFIG,
-      students: [{ ...TEST_STUDENT, consent: signedConsentFor(1) }],
+      students: [{ ...conNombre(TEST_STUDENT, nombre), consent: signedConsentFor(1) }],
     });
     consentPage = new ConsentPage(page);
   },
 );
 
-Given('que el estudiante {string} es menor de edad y no ha firmado', async ({ page }, _nombre: string) => {
+Given('que el estudiante {string} es menor de edad y no ha firmado', async ({ page }, nombre: string) => {
   await seedAll(page, {
     consent_config: DEFAULT_CONSENT_CONFIG,
-    students: [{ ...TEST_MINOR_STUDENT, consent: unsignedConsent }],
+    students: [{ ...conNombre(TEST_MINOR_STUDENT, nombre), consent: unsignedConsent }],
   });
   consentPage = new ConsentPage(page);
 });
 
 Given(
   'que el estudiante {string} firmó en una versión anterior del consentimiento',
-  async ({ page }, _nombre: string) => {
+  async ({ page }, nombre: string) => {
     // Config en v2 pero el estudiante firmó en v1 → muestra PDF del firmado anterior
     await seedAll(page, {
       consent_config: { version: 2, updatedDate: new Date().toISOString(), text: 'T', minorText: 'TM' },
       students: [{
-        ...TEST_STUDENT,
+        ...conNombre(TEST_STUDENT, nombre),
         consent: signedConsentFor(1), // firmó v1, config es v2
       }],
     });
@@ -83,7 +83,7 @@ When('el administrador accede al módulo de consentimiento', async ({ page }) =>
   await consentPage.goto();
 });
 
-When('hace clic en el botón de editar', async ({}) => {
+When('empieza a editar el texto del consentimiento', async ({}) => {
   await consentPage.abrirEdicion();
 });
 
@@ -91,8 +91,8 @@ When('guarda una nueva versión del texto de consentimiento', async ({}) => {
   await consentPage.actualizarTextoConsentimiento('Texto actualizado v2 E2E');
 });
 
-When('abre el diálogo de firma para {string}', async ({}, _nombre: string) => {
-  await consentPage.abrirDialogoFirma();
+When('inicia la firma de {string}', async ({}, nombre: string) => {
+  await consentPage.abrirDialogoFirma(nombre);
 });
 
 // ── Then ──────────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ Then('debería ver a {string} en la lista de pendientes', async ({}, nombre: str
   await expect(consentPage.nombreEstudiante(nombre)).toBeVisible();
 });
 
-Then('debería ver el botón de firma disponible para ese estudiante', async ({}) => {
+Then('debería poder iniciar la firma de ese estudiante', async ({}) => {
   await expect(consentPage.btnFirmar()).toBeVisible();
 });
 
@@ -126,7 +126,7 @@ Then('{string} debería aparecer nuevamente en la lista de pendientes', async ({
   await expect(consentPage.nombreEstudiante(nombre)).toBeVisible();
 });
 
-Then('debería ver el botón de diferir junto al botón de firma para ese estudiante', async ({}) => {
+Then('debería poder diferir la firma de ese estudiante', async ({}) => {
   await expect(consentPage.btnDiferir()).toBeVisible();
   await expect(consentPage.btnFirmar()).toBeVisible();
 });
@@ -135,12 +135,12 @@ Then('debería ver el campo de texto para editar el consentimiento', async ({}) 
   await expect(consentPage.textareaEdicion).toBeVisible();
 });
 
-Then('debería ver el canvas para capturar la firma', async ({}) => {
+Then('debería poder dibujar la firma', async ({}) => {
   await expect(consentPage.dialog).toBeVisible();
   await expect(consentPage.canvasFirma).toBeVisible();
 });
 
-Then('debería ver el botón de descarga del PDF firmado', async ({}) => {
+Then('debería poder descargar el PDF firmado', async ({}) => {
   await expect(consentPage.btnDescargarPDF()).toBeVisible();
 });
 

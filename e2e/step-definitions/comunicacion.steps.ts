@@ -25,11 +25,11 @@ When('accede al módulo de comunicación', async ({ page }) => {
   await communicationPage.goto();
 });
 
-When('navega a la pestaña de canales', async ({}) => {
+When('entra a la sección de canales', async ({}) => {
   await communicationPage.irACanales();
 });
 
-When('navega a la pestaña de envío', async ({}) => {
+When('entra a la sección de envío', async ({}) => {
   await communicationPage.irAEnviar();
 });
 
@@ -47,15 +47,15 @@ When('selecciona la plantilla {string}', async ({}, nombre: string) => {
 
 // ── Then ──────────────────────────────────────────────────────────────────────
 
-Then('debería ver la pestaña de plantillas', async ({}) => {
+Then('debería ver la sección de plantillas', async ({}) => {
   await expect(communicationPage.tabPlantillas).toBeVisible();
 });
 
-Then('debería ver la pestaña de canales', async ({}) => {
+Then('debería ver la sección de canales', async ({}) => {
   await expect(communicationPage.tabCanales).toBeVisible();
 });
 
-Then('debería ver la pestaña de envío', async ({}) => {
+Then('debería ver la sección de envío', async ({}) => {
   await expect(communicationPage.tabEnviar).toBeVisible();
 });
 
@@ -81,11 +81,11 @@ Then('debería ver los controles para activar o desactivar cada canal', async ({
   expect(await toggles.count()).toBeGreaterThanOrEqual(1);
 });
 
-Then('el botón de enviar debería estar deshabilitado', async ({}) => {
+Then('no debería poder enviar el mensaje', async ({}) => {
   await expect(communicationPage.btnEnviar).toBeDisabled();
 });
 
-Then('el botón debería cambiar a deseleccionar todos', async ({}) => {
+Then('todos los estudiantes deberían quedar seleccionados', async ({}) => {
   await expect(communicationPage.btnDeseleccionarTodos).toBeVisible();
 });
 

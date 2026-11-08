@@ -7,7 +7,7 @@ Característica: Ventas de la tienda
 
   Antecedentes:
     Dado que hay en inventario 5 unidades de "Proteína E2E" y el servicio "Masaje E2E"
-    Cuando abre la pestaña de ventas
+    Cuando entra a la sección de ventas
 
   @smoke @critico
   Escenario: Una venta de contado descuenta el stock vendido
@@ -45,3 +45,15 @@ Característica: Ventas de la tienda
     Cuando vende con doble clic 1 de "Proteína E2E" al cliente "Cliente E2E"
     Entonces debería existir 1 venta registrada
     Y el stock de "Proteína E2E" debería ser 4
+
+  @critico
+  Escenario: Una venta a crédito queda con su plan de cuotas y descuenta el stock
+    Cuando vende a crédito 1 de "Proteína E2E" al cliente "Cliente E2E" con vencimiento en 30 días
+    Entonces debería existir 1 venta a crédito con 1 cuota
+    Y el stock de "Proteína E2E" debería ser 4
+
+  @regresion
+  Escenario: Un servicio se vende sin afectar el stock de los productos
+    Cuando vende 1 de "Masaje E2E" al cliente "Cliente E2E"
+    Entonces debería existir 1 venta registrada
+    Y el stock de "Proteína E2E" debería ser 5

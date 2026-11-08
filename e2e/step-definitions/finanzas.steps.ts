@@ -3,10 +3,13 @@
  * Steps para: features/ventas, features/inventario y features/finanzas.
  */
 
-import { expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { expect, type Page } from '@playwright/test';
 import { Given, When, Then } from '../support/world';
 import { FinanzasPage } from '../pages/FinanzasPage';
 import { lsGet, seedAll } from '../helpers/seed';
+import { diasDesdeHoy } from '../helpers/dates';
+import { TEST_STUDENT } from '../fixtures/students';
 
 let finanzas: FinanzasPage;
 
@@ -14,7 +17,8 @@ type Item = { id: string; name: string; price: number; stock: number | null };
 type Movimiento = { type: string; amount: number };
 
 const items = () => lsGet<Item[]>(finanzas.page, 'inventory_items').then((l) => l ?? []);
-const ventas = () => lsGet<unknown[]>(finanzas.page, 'sales').then((l) => l ?? []);
+type Venta = { type: string; creditPlan?: { installments: unknown[] } };
+const ventas = () => lsGet<Venta[]>(finanzas.page, 'sales').then((l) => l ?? []);
 const movimientos = () => lsGet<Movimiento[]>(finanzas.page, 'finance_movements').then((l) => l ?? []);
 
 Given(
@@ -30,11 +34,11 @@ Given(
   },
 );
 
-When('abre la pestaña de ventas', async () => {
+When('entra a la sección de ventas', async () => {
   await finanzas.abrirPestana(/^ventas$/i);
 });
 
-When('abre la pestaña de inventario', async () => {
+When('entra a la sección de inventario', async () => {
   await finanzas.abrirPestana(/^inventario$/i);
 });
 
@@ -102,6 +106,29 @@ When('intenta eliminar {string} y cancela la confirmación', async ({ page }, no
   await finanzas.filaItem(nombre).getByRole('button', { name: /eliminar/i }).click();
 });
 
+When(
+  'vende a crédito {int} de {string} al cliente {string} con vencimiento en {int} días',
+  async ({}, n: number, item: string, cliente: string, dias: number) => {
+    await finanzas.llenarVenta(String(n), item, cliente);
+    await finanzas.elegirCredito();
+    await finanzas.panel.locator('#credit-date').fill(diasDesdeHoy(dias));
+    await finanzas.btnVenta.click();
+  },
+);
+
+When('elimina {string} confirmando la acción', async ({ page }, nombre: string) => {
+  page.once('dialog', (d) => d.accept());
+  await finanzas.filaItem(nombre).getByRole('button', { name: /eliminar/i }).click();
+});
+
+Then('debería existir {int} venta a crédito con {int} cuota', async ({}, n: number, cuotas: number) => {
+  await finanzas.asentar();
+  const lista = await ventas();
+  expect(lista).toHaveLength(n);
+  expect(lista[0].type).toBe('credit');
+  expect(lista[0].creditPlan?.installments).toHaveLength(cuotas);
+});
+
 Then('debería ver {string} en el inventario', async ({}, nombre: string) => {
   await expect(finanzas.filaItem(nombre)).toBeVisible();
 });
@@ -157,4 +184,84 @@ Then('no debería existir ningún movimiento', async () => {
 
 Then('debería ver un error en el formulario de traslado', async () => {
   await expect(finanzas.erroresFormulario.first()).toBeVisible();
+});
+
+// ── Comprobantes ─────────────────────────────────────────────────────────────
+
+const hoyLocal = () => new Date().toLocaleDateString('en-CA');
+
+Given(
+  'que existe un pago de hoy con el comprobante {string} del plan {string}',
+  async ({ page }, receiptNo: string, planName: string) => {
+    await seedAll(page, {
+      students: [
+        {
+          ...TEST_STUDENT,
+          payments: [
+            {
+              id: `pay-${receiptNo}`,
+              date: hoyLocal(),
+              amount: 80000,
+              method: 'Efectivo',
+              status: 'paid',
+              planName,
+              category: 'mensualidad',
+              discount: 10000,
+              discountReason: '',
+              receiptNo,
+            },
+          ],
+        },
+      ],
+    });
+    finanzas = new FinanzasPage(page);
+  },
+);
+
+When('consulta los comprobantes', async () => {
+  await finanzas.abrirPestana(/comprobantes/i);
+});
+
+When('busca el comprobante {string}', async ({ page }, texto: string) => {
+  await page.getByLabel('Buscar').fill(texto);
+});
+
+When('filtra los comprobantes desde dentro de {int} días', async ({ page }, dias: number) => {
+  await page.getByLabel('Desde').fill(diasDesdeHoy(dias));
+});
+
+async function descargarResumen(page: Page): Promise<string> {
+  const descarga = page.waitForEvent('download');
+  await page.getByRole('button', { name: /resumen para excel/i }).click();
+  return readFile(await (await descarga).path(), 'utf8');
+}
+
+Then('debería ver el comprobante {string}', async ({ page }, receiptNo: string) => {
+  await expect(page.getByRole('cell', { name: receiptNo, exact: true })).toBeVisible();
+});
+
+Then('el PDF del período debería descargarse como un solo archivo', async ({ page }) => {
+  const descarga = page.waitForEvent('download');
+  await page.getByRole('button', { name: /descargar pdf/i }).click();
+  expect((await descarga).suggestedFilename()).toMatch(/^comprobantes_.*\.pdf$/);
+});
+
+Then('el resumen descargado debería contener {string} con total {int}', async ({ page }, receiptNo: string, total: number) => {
+  const fila = (await descargarResumen(page)).split('\r\n').find((l) => l.includes(receiptNo));
+  expect(fila?.endsWith(`;${total}`)).toBe(true);
+});
+
+Then('el resumen descargado debería neutralizar la fórmula', async ({ page }) => {
+  const csv = await descargarResumen(page);
+  expect(csv).toContain("'=HYPERLINK(1)");
+  expect(csv).not.toContain(';=HYPERLINK(1)');
+});
+
+Then('las descargas en lote deberían estar deshabilitadas', async ({ page }) => {
+  await expect(page.getByRole('button', { name: /descargar pdf/i })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /resumen para excel/i })).toBeDisabled();
+});
+
+Then('debería avisar que el período no es válido', async ({ page }) => {
+  await expect(page.getByText(/no puede ser posterior/i)).toBeVisible();
 });
