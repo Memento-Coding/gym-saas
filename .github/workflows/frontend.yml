@@ -1,7 +1,7 @@
 # Frontend CI/CD
 #   cualquier rama / PR → test + build
 #   push a develop      → deploy a dev  (S3 + CloudFront de GymOps-dev-Storage)
-#   push a master       → deploy a prod (requiere aprobación del environment "production")
+#   push a master       → deploy a prod, solo si es idéntico a develop y develop ya se desplegó en dev
 #
 # Bucket y DistributionId se leen de los outputs del stack CDK (gym-saas-infra),
 # así no hay que duplicarlos en secrets.
@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # gate de prod: consultar runs de develop
   id-token: write # AWS OIDC
 
 jobs:
@@ -42,6 +43,20 @@ jobs:
       AWS_REGION: us-east-1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Prod solo despliega lo que ya pasó por dev (no hay revisores obligatorios sin GitHub Team).
+      - name: Gate - mismo código que develop y desplegado en dev
+        if: github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --quiet origin/develop HEAD || { echo "::error::master difiere de develop: mergea a develop y deja que se despliegue en dev primero"; exit 1; }
+          sha=$(git rev-parse origin/develop)
+          ok=$(gh run list --workflow frontend.yml --branch develop --commit "$sha" --status success --json databaseId -q length)
+          [ "$ok" -gt 0 ] || { echo "::error::develop ($sha) no se ha desplegado con éxito en dev"; exit 1; }
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
