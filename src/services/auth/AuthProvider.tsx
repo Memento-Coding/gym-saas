@@ -24,8 +24,10 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import type { ReactNode } from 'react';
+import { Hub } from 'aws-amplify/utils';
 
 import {
   getCurrentUser,
@@ -35,6 +37,8 @@ import {
   signOut,
   signUp,
   confirmSignUp,
+  resendSignUpCode,
+  recordTermsAcceptance,
 } from './AuthService';
 import type { AuthUser, SignInResult, SignUpResult } from './AuthService';
 
@@ -53,12 +57,51 @@ const DEV_MOCK_USER: AuthUser = {
   email: 'dev@gymops.local',
 };
 
+// ─── Fallos de Google ──────────────────────────────────────────────────────────
+
+const TERMS_PENDING_KEY = 'gymops.termsPending';
+
+/** Solo guarda si el inicio con Google salió del login, donde se ve la nota de aceptación. */
+async function recordGoogleTermsIfPending(user: AuthUser): Promise<void> {
+  if (sessionStorage.getItem(TERMS_PENDING_KEY) === null) return;
+  try {
+    if (!user.termsAccepted) await recordTermsAcceptance();
+    sessionStorage.removeItem(TERMS_PENDING_KEY);
+  } catch {
+    // No debe impedir la entrada: la marca sigue para reintentar en la próxima carga.
+  }
+}
+
+let pendingOAuthError: unknown = null;
+const oauthListeners = new Set<() => void>();
+
+function setPendingOAuthError(error: unknown) {
+  pendingOAuthError = error;
+  oauthListeners.forEach((notify) => notify());
+}
+
+function subscribeOAuthError(notify: () => void) {
+  oauthListeners.add(notify);
+  return () => {
+    oauthListeners.delete(notify);
+  };
+}
+
+// A nivel de módulo: el fallo puede llegar antes de que React monte el provider.
+Hub.listen('auth', ({ payload }) => {
+  if (payload.event !== 'signInWithRedirect_failure') return;
+  sessionStorage.removeItem(TERMS_PENDING_KEY);
+  setPendingOAuthError(payload.data?.error ?? new Error('OAuth'));
+});
+
 // ─── Tipos del Context ─────────────────────────────────────────────────────────
 
 export interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /** Error al volver de Google (por ejemplo, correo no autorizado). */
+  oauthError: unknown;
 }
 
 export interface AuthActions {
@@ -67,6 +110,8 @@ export interface AuthActions {
   logout: () => Promise<void>;
   register: (email: string, password: string) => Promise<SignUpResult>;
   confirmRegistration: (email: string, code: string) => Promise<SignUpResult>;
+  resendCode: (email: string) => Promise<void>;
+  clearOAuthError: () => void;
   refreshSession: () => Promise<void>;
 }
 
@@ -85,6 +130,7 @@ export interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const oauthError = useSyncExternalStore(subscribeOAuthError, () => pendingOAuthError);
 
   const isAuthenticated = user !== null;
 
@@ -105,6 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const currentUser = await getCurrentUser();
         if (!cancelled) {
           setUser(currentUser);
+          void recordGoogleTermsIfPending(currentUser);
         }
       } catch {
         // No hay sesión activa — usuario no autenticado
@@ -149,6 +196,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    sessionStorage.setItem(TERMS_PENDING_KEY, '1');
     await signInWithGoogle();
     // Nota: signInWithGoogle redirige, el estado se actualiza al volver
   }, []);
@@ -182,6 +230,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return confirmSignUp(email, code);
   }, []);
 
+  const resendCode = useCallback(async (email: string): Promise<void> => {
+    if (AUTH_BYPASS_ENABLED) return;
+    await resendSignUpCode(email);
+  }, []);
+
+  const clearOAuthError = useCallback(() => setPendingOAuthError(null), []);
+
   /**
    * Renueva la sesión usando el refresh token (Amplify lo maneja internamente).
    * Requirement 16.6: renovar sesión sin interrumpir al usuario.
@@ -208,14 +263,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       isLoading,
       isAuthenticated,
+      oauthError,
       login,
       loginWithGoogle,
       logout,
       register,
       confirmRegistration,
+      resendCode,
+      clearOAuthError,
       refreshSession,
     }),
-    [user, isLoading, isAuthenticated, login, loginWithGoogle, logout, register, confirmRegistration, refreshSession],
+    [user, isLoading, isAuthenticated, oauthError, login, loginWithGoogle, logout, register, confirmRegistration, resendCode, clearOAuthError, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

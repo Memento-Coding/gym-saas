@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 import { useAuth } from '@/services/auth';
@@ -23,12 +23,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { authErrorMessage } from '@/services/auth/authErrors';
+import { clearReturnPath, rememberReturnPath, safeReturnPath } from '@/services/auth/returnPath';
+import { PasswordInput } from '@/components/ui/password-input';
 
 const springTransition = { type: 'spring' as const, duration: 0.35, bounce: 0 };
 
 export function LoginPage() {
-  const { isAuthenticated, isLoading, login, loginWithGoogle } = useAuth();
+  const { isAuthenticated, isLoading, login, loginWithGoogle, oauthError, clearOAuthError } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = location.state as { from?: unknown; notice?: string } | null;
+  const returnTo = safeReturnPath(routeState?.from);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,25 +51,35 @@ export function LoginPage() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={returnTo} replace />;
+  }
+
+  function goToVerification() {
+    navigate('/registro', { state: { email, verify: true } });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    clearOAuthError();
+    clearReturnPath();
     setIsSubmitting(true);
 
     try {
       const result = await login(email, password);
       if (result.isSignedIn) {
-        navigate('/', { replace: true });
+        navigate(returnTo, { replace: true });
+      } else if (result.nextStep === 'CONFIRM_SIGN_UP') {
+        goToVerification();
       } else {
         setError('Inicio de sesión incompleto. Verifica tu cuenta.');
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Error al iniciar sesión';
-      setError(message);
+      if (err instanceof Error && err.name === 'UserNotConfirmedException') {
+        goToVerification();
+        return;
+      }
+      setError(authErrorMessage(err, 'Error al iniciar sesión'));
     } finally {
       setIsSubmitting(false);
     }
@@ -71,16 +87,19 @@ export function LoginPage() {
 
   async function handleGoogleLogin() {
     setError('');
+    clearOAuthError();
     setIsGoogleLoading(true);
     try {
+      if (returnTo !== '/') rememberReturnPath(returnTo);
       await loginWithGoogle();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Error al iniciar sesión con Google';
-      setError(message);
+      setError(authErrorMessage(err, 'Error al iniciar sesión con Google'));
       setIsGoogleLoading(false);
     }
   }
+
+  const shownError =
+    error || (oauthError ? authErrorMessage(oauthError, 'No se pudo iniciar sesión con Google. Intenta de nuevo.') : '');
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden">
@@ -134,14 +153,14 @@ export function LoginPage() {
                   <Label htmlFor="password" className="text-sm font-medium">Contraseña</Label>
                   <Link
                     to="/recuperar-password"
+                    state={{ email }}
                     className="text-xs text-muted-foreground hover:text-primary transition-colors"
                   >
                     ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -151,9 +170,15 @@ export function LoginPage() {
                 />
               </div>
 
-              {error && (
-                <div className="rounded-xl bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
-                  {error}
+              {routeState?.notice && !shownError && (
+                <div role="status" className="rounded-xl bg-success-50 px-3 py-2.5 text-sm text-success-700">
+                  {routeState.notice}
+                </div>
+              )}
+
+              {shownError && (
+                <div role="alert" className="rounded-xl bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
+                  {shownError}
                 </div>
               )}
 
@@ -199,6 +224,10 @@ export function LoginPage() {
                 </svg>
                 {isGoogleLoading ? 'Conectando...' : 'Continuar con Google'}
               </Button>
+
+              <p className="text-center text-xs text-muted-foreground">
+                Al continuar con Google aceptas las Condiciones y la Política de privacidad.
+              </p>
 
               <p className="text-center text-sm text-muted-foreground pt-1">
                 ¿No tienes cuenta?{' '}

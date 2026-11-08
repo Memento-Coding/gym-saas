@@ -8,11 +8,19 @@
  * @see Requirement 16.4: redirigir a login cuando usuario no autenticado accede a ruta protegida.
  */
 
-import { Navigate, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { clearReturnPath, peekReturnPath } from './returnPath';
 
 export function ProtectedRoute() {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  // Se borra en un efecto: un render puede repetirse y debe ver la misma ruta guardada.
+  useEffect(() => {
+    if (isAuthenticated) clearReturnPath();
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return (
@@ -26,7 +34,12 @@ export function ProtectedRoute() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  }
+
+  const returnPath = peekReturnPath();
+  if (returnPath && returnPath !== location.pathname + location.search) {
+    return <Navigate to={returnPath} replace />;
   }
 
   return <Outlet />;

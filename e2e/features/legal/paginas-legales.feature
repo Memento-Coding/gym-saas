@@ -28,8 +28,7 @@ Característica: Páginas legales públicas
     Cuando abre la página pública "/privacidad"
     Entonces no debería ver el menú de la aplicación
 
-  # BUG real: una dirección inexistente deja la pantalla en blanco (App.tsx no tiene ruta comodín).
-  @adversarial @fixme
+  @adversarial
   Escenario: Una dirección inexistente no deja la pantalla en blanco
     Cuando abre la página pública "/no-existe"
     Entonces debería ver contenido en la pantalla

@@ -8,8 +8,8 @@
  * @see Requirement 16.10: registro de nuevos usuarios administrativos con verificación de email.
  */
 
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 import { useAuth } from '@/services/auth';
@@ -24,22 +24,51 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { authErrorMessage } from '@/services/auth/authErrors';
+import { Checkbox } from '@/components/ui/checkbox';
+import { PasswordInput } from '@/components/ui/password-input';
+import { PasswordRequirements } from '@/components/auth/PasswordRequirements';
+import { ResendCodeButton } from '@/components/auth/ResendCodeButton';
 
 const springTransition = { type: 'spring' as const, duration: 0.35, bounce: 0 };
 
 type Step = 'register' | 'verify';
 
 export function RegisterPage() {
-  const { register, confirmRegistration } = useAuth();
+  const { register, confirmRegistration, resendCode } = useAuth();
   const navigate = useNavigate();
+  const routeState = useLocation().state as { email?: string; verify?: boolean } | null;
+  const arrivedToVerify = Boolean(routeState?.verify && routeState.email);
 
-  const [step, setStep] = useState<Step>('register');
-  const [email, setEmail] = useState('');
+  const [step, setStep] = useState<Step>(arrivedToVerify ? 'verify' : 'register');
+  const [email, setEmail] = useState(routeState?.email ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  async function resend(): Promise<boolean> {
+    setError('');
+    try {
+      await resendCode(email);
+      return true;
+    } catch (err) {
+      setError(authErrorMessage(err, 'No se pudo reenviar el código'));
+      return false;
+    }
+  }
+
+  // Quien llega desde el login no tiene un código vigente. El ref evita un doble envío en StrictMode.
+  const autoResent = useRef(false);
+  useEffect(() => {
+    if (!arrivedToVerify || autoResent.current) return;
+    autoResent.current = true;
+    void resendCode(routeState?.email ?? '').catch((err: unknown) =>
+      setError(authErrorMessage(err, 'No se pudo reenviar el código')),
+    );
+  }, [arrivedToVerify, resendCode, routeState?.email]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -56,19 +85,22 @@ export function RegisterPage() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError('Debes aceptar las Condiciones y la Política de privacidad.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const result = await register(email, password);
       if (result.isSignUpComplete) {
-        navigate('/login', { replace: true });
+        navigate('/login', { replace: true, state: { notice: 'Cuenta creada. Ya puedes iniciar sesión.' } });
       } else {
         setStep('verify');
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Error al registrar la cuenta';
-      setError(message);
+      setError(authErrorMessage(err, 'Error al registrar la cuenta'));
     } finally {
       setIsSubmitting(false);
     }
@@ -82,14 +114,12 @@ export function RegisterPage() {
     try {
       const result = await confirmRegistration(email, code);
       if (result.isSignUpComplete) {
-        navigate('/login', { replace: true });
+        navigate('/login', { replace: true, state: { notice: 'Cuenta verificada. Ya puedes iniciar sesión.' } });
       } else {
         setError('Verificación incompleta. Intenta nuevamente.');
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Error al verificar el código';
-      setError(message);
+      setError(authErrorMessage(err, 'Error al verificar el código'));
     } finally {
       setIsSubmitting(false);
     }
@@ -133,28 +163,41 @@ export function RegisterPage() {
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="password">Contraseña</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
-                    placeholder="8+ caracteres, mayúscula, minúscula y número"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="new-password"
                   />
+                  <PasswordRequirements password={password} />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="confirm-password">Confirmar contraseña</Label>
-                  <Input
+                  <PasswordInput
                     id="confirm-password"
-                    type="password"
                     placeholder="Repite tu contraseña"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     autoComplete="new-password"
                   />
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="accept-terms"
+                    className="mt-0.5"
+                    checked={acceptedTerms}
+                    onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                  />
+                  <Label htmlFor="accept-terms" className="block text-sm font-normal leading-snug">
+                    Acepto las{' '}
+                    <Link to="/terminos" target="_blank" className="text-primary underline underline-offset-4">Condiciones del servicio</Link>
+                    {' y la '}
+                    <Link to="/privacidad" target="_blank" className="text-primary underline underline-offset-4">Política de privacidad</Link>.
+                  </Label>
                 </div>
 
                 {error && (
@@ -197,6 +240,8 @@ export function RegisterPage() {
                 <Button type="submit" disabled={isSubmitting} className="w-full">
                   {isSubmitting ? 'Verificando...' : 'Verificar'}
                 </Button>
+
+                <ResendCodeButton onResend={resend} />
 
                 <p className="text-center text-sm text-muted-foreground">
                   <button

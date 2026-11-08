@@ -4,6 +4,7 @@ export {
   signInWithGoogle,
   signUp,
   confirmSignUp,
+  resendSignUpCode,
   signOut,
   getCurrentUser,
   getAccessToken,
