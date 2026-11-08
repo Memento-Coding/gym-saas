@@ -109,6 +109,7 @@ export function CreditPlanEditor({ total, config, onConfigChange }: CreditPlanEd
             value={config.initialPayment != null ? String(config.initialPayment) : ''}
             onChange={(e) => {
               const raw = e.target.value.trim();
+              if (!/^\d*$/.test(raw)) return; // COP: solo enteros no negativos.
               update({ initialPayment: raw === '' ? 0 : Number(raw) });
             }}
           />

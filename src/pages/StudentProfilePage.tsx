@@ -18,6 +18,7 @@ import type { PaymentInput } from '@/services/PaymentService';
 import { usePayments } from '@/hooks/usePayments';
 import { useMemberships } from '@/hooks/useMemberships';
 import type { Student } from '@/types/student';
+import { formatDocument } from '@/utils/validation';
 import type { ReceiptClientInfo } from '@/services/ReceiptService';
 
 import { Button } from '@/components/ui/button';
@@ -87,7 +88,7 @@ export function StudentProfilePage() {
 
   const client: ReceiptClientInfo = {
     name: `${student.firstName} ${student.lastName}`,
-    documentId: student.documentId,
+    documentId: formatDocument(student.documentId, student.documentType),
     phone: student.phone,
     email: student.email,
   };
@@ -118,7 +119,7 @@ export function StudentProfilePage() {
           {student.firstName} {student.lastName}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Documento: {student.documentId || '—'} · Plan: {student.planName || '—'} ·
+          Documento: {formatDocument(student.documentId, student.documentType) || '—'} · Plan: {student.planName || '—'} ·
           {' '}Vencimiento: {formatDate(student.subscriptionEndDate)}
         </p>
         </div>

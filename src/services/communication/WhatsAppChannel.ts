@@ -56,9 +56,7 @@ export class WhatsAppChannel implements CommunicationChannel {
     }
 
     // Limpiar número de teléfono: solo dígitos
-    const cleanPhone = student.phone.replace(/\D/g, '');
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    const whatsappUrl = this.generateUrl(student.phone, message);
 
     return {
       success: true,
@@ -71,7 +69,9 @@ export class WhatsAppChannel implements CommunicationChannel {
    * Genera la URL de WhatsApp sin enviar (útil para previsualizaciones).
    */
   generateUrl(phone: string, message: string): string {
-    const cleanPhone = phone.replace(/\D/g, '');
+    const digits = phone.replace(/\D/g, '');
+    // wa.me exige indicativo y los teléfonos se guardan en 10 dígitos.
+    const cleanPhone = digits.length === 10 ? `57${digits}` : digits;
     const encodedMessage = encodeURIComponent(message);
     return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
   }

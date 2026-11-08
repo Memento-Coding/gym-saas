@@ -55,7 +55,7 @@ export function Sidebar() {
       {/* Logo / brand */}
       <div className="flex h-[var(--header-height)] items-center justify-center lg:justify-start lg:px-5 border-b border-sidebar-border/50">
         <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-sidebar-primary text-white">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
             <span className="text-sm font-bold leading-none">G</span>
           </div>
           <span className="hidden lg:inline text-base font-semibold text-sidebar-primary tracking-tight">
@@ -76,7 +76,7 @@ export function Sidebar() {
                 'nav-item flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium',
                 'lg:px-3 justify-center lg:justify-start',
                 active
-                  ? 'bg-sidebar-primary/10 text-sidebar-primary'
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
               )}
               aria-current={active ? 'page' : undefined}
@@ -85,13 +85,13 @@ export function Sidebar() {
               <Icon
                 className={cn(
                   'size-[18px] shrink-0 transition-colors duration-150',
-                  active ? 'text-sidebar-primary' : 'text-sidebar-foreground/70',
+                  active ? 'text-sidebar-primary-foreground' : 'text-sidebar-foreground/70',
                 )}
               />
               <span className="hidden lg:inline">{label}</span>
               {/* Active indicator pill — only visible when expanded */}
               {active && (
-                <span className="hidden lg:ml-auto lg:block size-1.5 rounded-full bg-sidebar-primary" />
+                <span className="hidden lg:ml-auto lg:block size-1.5 rounded-full bg-sidebar-primary-foreground" />
               )}
             </Link>
           );
@@ -106,7 +106,7 @@ export function Sidebar() {
               {user.username}
             </span>
             {user.email && (
-              <span className="text-xs text-muted-foreground truncate">
+              <span className="text-xs text-sidebar-foreground/70 truncate">
                 {user.email}
               </span>
             )}
@@ -114,7 +114,7 @@ export function Sidebar() {
         )}
         <Button
           variant="ghost"
-          className="nav-item w-full justify-center lg:justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/8 rounded-xl"
+          className="nav-item w-full justify-center lg:justify-start gap-3 text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/60 rounded-xl"
           onClick={() => logout()}
           title="Cerrar sesión"
         >

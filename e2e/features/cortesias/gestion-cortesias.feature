@@ -54,11 +54,6 @@ Característica: Gestión de cortesías y bonos
       | -3      | Cierre |
       | 1.5     | Cierre |
       | 2       |        |
-
-    # BUG real: el formulario acepta más de 52 semanas. Quitar @fixme al corregirlo.
-    @fixme
-    Ejemplos: Duración mayor al máximo
-      | semanas | razon  |
       | 53      | Cierre |
 
   @adversarial

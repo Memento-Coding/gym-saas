@@ -20,6 +20,7 @@ import { motion } from 'framer-motion';
 import { Snowflake } from 'lucide-react';
 
 import type { Student } from '@/types/student';
+import { formatDocument } from '@/utils/validation';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -144,7 +145,7 @@ function StudentRow({
           {student.firstName} {student.lastName}
         </TableCell>
         <TableCell className="text-muted-foreground">
-          {student.documentId || '—'}
+          {formatDocument(student.documentId, student.documentType) || '—'}
         </TableCell>
         <TableCell className="text-muted-foreground">
           {student.planName || '—'}

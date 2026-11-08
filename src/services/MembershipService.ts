@@ -5,6 +5,7 @@
  * - Gestionar dos categorías de planes: grupales (mensualidad) y entrenamiento personalizado.
  * - Proveer planes por defecto con precios iniciales.
  * - Permitir edición de nombres y precios de los planes existentes.
+ * - Saber qué estudiantes dependen de un plan antes de eliminarlo.
  * - Manejar la propiedad `single: true` (Clase única) que NO extiende subscriptionEndDate.
  * - Persistir la configuración de planes en StorageService.
  *
@@ -13,9 +14,23 @@
 
 import type { StorageService } from '@/services/storage/StorageService';
 import type { MembershipPlan, CostsConfig } from '@/types/membership';
+import type { Student } from '@/types/student';
 
-/** Storage key para la configuración de planes */
-const COSTS_KEY = 'gymops_costs_config';
+/** Storage key para la configuración de planes (la que respaldan backup y reset). */
+export const COSTS_KEY = 'costs';
+
+/** Clave anterior: los datos locales que aún la usan se siguen leyendo. */
+const LEGACY_COSTS_KEY = 'gymops_costs_config';
+
+/** Estudiantes vigentes que dependen de un plan (los antiguos solo tienen el nombre). */
+export function countStudentsOnPlan(
+  plan: Pick<MembershipPlan, 'id' | 'name'>,
+  students: Pick<Student, 'planId' | 'planName' | 'status'>[],
+): number {
+  return students.filter(
+    (s) => s.status !== 'inactive' && (s.planId ? s.planId === plan.id : s.planName === plan.name),
+  ).length;
+}
 
 /**
  * Planes grupales por defecto (mensualidad).
@@ -63,7 +78,9 @@ export class MembershipService {
    * Si no existe en storage, inicializa con los planes por defecto.
    */
   async getCostsConfig(): Promise<CostsConfig> {
-    const config = await this.storageService.get<CostsConfig>(COSTS_KEY);
+    const config =
+      (await this.storageService.get<CostsConfig>(COSTS_KEY)) ??
+      (await this.storageService.get<CostsConfig>(LEGACY_COSTS_KEY));
     if (config) return config;
 
     // Primera ejecución: persistir los planes por defecto

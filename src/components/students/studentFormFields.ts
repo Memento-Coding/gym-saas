@@ -1,9 +1,6 @@
 /**
- * Configuración de campos por defecto para el formulario de estudiantes.
- *
- * En ausencia (todavía) de un módulo de Ajustes que persista los FormFieldConfig,
- * este set de campos "built-in" alimenta al StudentForm. Cuando exista un
- * SettingsService, bastará con reemplazar esta fuente por la configuración real.
+ * Campos del formulario de estudiantes: catálogo del sistema y resolución de lo
+ * que cada gimnasio configuró en Ajustes (`resolveStudentFields`).
  */
 
 import type { FormFieldConfig } from '@/types/settings';
@@ -16,11 +13,55 @@ export const DEFAULT_STUDENT_FIELDS: FormFieldConfig[] = [
   { id: 'phone', name: 'phone', label: 'Teléfono', type: 'tel', required: false, isBuiltIn: true },
   { id: 'email', name: 'email', label: 'Email', type: 'email', required: false, isBuiltIn: true },
   { id: 'dateOfBirth', name: 'dateOfBirth', label: 'Fecha de nacimiento', type: 'date', required: false, isBuiltIn: true },
-  { id: 'planName', name: 'planName', label: 'Plan', type: 'select', required: true, isBuiltIn: true,
-    options: ['Plan Básico genérico', 'Plan Estándar genérico', 'Plan Premium genérico'] },
+  // Las opciones son los planes del gimnasio: las inyecta StudentForm.
+  { id: 'planName', name: 'planName', label: 'Plan', type: 'select', required: true, isBuiltIn: true },
   { id: 'monthlyFee', name: 'monthlyFee', label: 'Mensualidad', type: 'number', required: false, isBuiltIn: true },
   { id: 'subscriptionEndDate', name: 'subscriptionEndDate', label: 'Vencimiento', type: 'date', required: true, isBuiltIn: true },
 ];
+
+/** Campos del sistema apagados por defecto, que un gimnasio puede activar. */
+const OPTIONAL_STUDENT_FIELDS: FormFieldConfig[] = [
+  { id: 'bloodType', name: 'bloodType', label: 'Tipo de sangre', type: 'select', required: false, isBuiltIn: true,
+    options: ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'] },
+  { id: 'beltRank', name: 'beltRank', label: 'Grado o cinturón', type: 'text', required: false, isBuiltIn: true },
+  { id: 'medicalNotes', name: 'medicalNotes', label: 'Observaciones médicas', type: 'text', required: false, isBuiltIn: true },
+];
+
+export const STUDENT_FIELD_CATALOG = [...DEFAULT_STUDENT_FIELDS, ...OPTIONAL_STUDENT_FIELDS];
+
+/** Siempre se piden: la API, los pagos y el estado de membresía dependen de ellos. */
+export const LOCKED_STUDENT_FIELDS = new Set([
+  'firstName',
+  'lastName',
+  'documentId',
+  'planName',
+  'subscriptionEndDate',
+]);
+
+/**
+ * Convierte lo guardado en Ajustes en los campos que muestra el formulario: la
+ * definición de los campos del sistema siempre sale del catálogo y de lo guardado
+ * solo se toma si se piden y si son obligatorios. Sin configuración de campos del
+ * sistema (gimnasio nuevo o solo con campos propios) se usan los de por defecto.
+ */
+export function resolveStudentFields(saved: FormFieldConfig[]): FormFieldConfig[] {
+  const byName = new Map(saved.map((f) => [f.name, f]));
+  const configured = byName.has('firstName');
+
+  const builtIn = STUDENT_FIELD_CATALOG.flatMap((field) => {
+    if (LOCKED_STUDENT_FIELDS.has(field.name)) return [field];
+    if (!configured) return DEFAULT_STUDENT_FIELDS.includes(field) ? [field] : [];
+    const choice = byName.get(field.name);
+    return choice ? [{ ...field, required: choice.required }] : [];
+  });
+
+  const catalogNames = new Set(STUDENT_FIELD_CATALOG.map((f) => f.name));
+  const custom = saved
+    .filter((f) => !catalogNames.has(f.name))
+    .map((f) => ({ ...f, isBuiltIn: false }));
+
+  return [...builtIn, ...custom];
+}
 
 /**
  * Valores base para completar un Student nuevo a partir de los datos parciales

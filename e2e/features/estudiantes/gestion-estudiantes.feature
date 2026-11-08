@@ -21,7 +21,7 @@ Característica: Gestión de estudiantes
   Escenario: Administrador registra un nuevo estudiante
     Cuando accede al módulo de estudiantes
     Y abre el formulario de nuevo estudiante
-    Y registra al estudiante "Carlos" "López" con documento "50607080" plan "Plan Básico genérico" y vencimiento en 30 días
+    Y registra al estudiante "Carlos" "López" con documento "50607080" plan "Básico" y vencimiento en 30 días
     Entonces debería ver la confirmación de que el estudiante fue registrado
     Y debería ver a "Carlos López" en la lista de estudiantes
     Y debería existir 1 estudiante guardado con documento "50607080"
@@ -85,12 +85,7 @@ Característica: Gestión de estudiantes
       | Mensualidad | -5           |
       | Mensualidad | gratis       |
       | Vencimiento |              |
-
-    # BUG real: el formulario acepta nombres solo con espacios. Quitar @fixme al corregirlo.
-    @fixme
-    Ejemplos: Solo espacios
-      | campo   | valor |
-      | Nombres | ␠␠␠   |
+      | Nombres     | ␠␠␠          |
 
   @adversarial
   Escenario: No se puede registrar dos veces el mismo documento

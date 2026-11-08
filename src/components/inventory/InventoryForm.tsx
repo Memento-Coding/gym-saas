@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { nonNegativeAmount, integerInRange, messages } from '@/utils/validation';
+import { copAmount, integerInRange, textSchema } from '@/utils/validation';
 import type { CreateInventoryItemInput } from '@/services/InventoryService';
 import type { InventoryItem } from '@/types/inventory';
 
@@ -72,12 +72,9 @@ function buildSchema() {
   return z
     .object({
       kind: z.enum(['product', 'service']),
-      name: z
-        .string({ error: messages.required('El nombre') })
-        .trim()
-        .min(1, { message: messages.required('El nombre') }),
-      cost: nonNegativeAmount('El costo'),
-      price: nonNegativeAmount('El precio'),
+      name: textSchema('El nombre', true, 100),
+      cost: copAmount('El costo'),
+      price: copAmount('El precio'),
       // Se valida condicionalmente según kind en el superRefine.
       stock: z.string().optional().default(''),
     })

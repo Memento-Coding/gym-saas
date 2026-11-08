@@ -110,7 +110,7 @@ describe('Formulario guardián — validación numérica estricta', () => {
     const { onSubmit } = renderMinorForm();
 
     await user.type(screen.getByLabelText(/nombres/i), 'Pedro');
-    await user.type(getStudentDocInput(), '12345678');
+    await user.type(getStudentDocInput(), '1012345678');
     await activateMinor(user);
     await user.type(screen.getByLabelText(/nombre del acudiente/i), 'Ana');
     await user.type(screen.getByLabelText(/documento del acudiente/i), '12AB34');
@@ -128,7 +128,7 @@ describe('Formulario guardián — validación numérica estricta', () => {
     const { onSubmit } = renderMinorForm();
 
     await user.type(screen.getByLabelText(/nombres/i), 'Pedro');
-    await user.type(getStudentDocInput(), '12345678');
+    await user.type(getStudentDocInput(), '1012345678');
     await activateMinor(user);
     await user.type(screen.getByLabelText(/nombre del acudiente/i), 'Ana');
     await user.type(screen.getByLabelText(/documento del acudiente/i), '12-34-56');
@@ -141,12 +141,12 @@ describe('Formulario guardián — validación numérica estricta', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('acepta guardianDocument con solo dígitos (4–20)', async () => {
+  it('acepta guardianDocument con una cédula válida', async () => {
     const user = userEvent.setup();
     const { onSubmit } = renderMinorForm();
 
     await user.type(screen.getByLabelText(/nombres/i), 'Pedro');
-    await user.type(getStudentDocInput(), '12345678');
+    await user.type(getStudentDocInput(), '1012345678');
     await activateMinor(user);
     await user.type(screen.getByLabelText(/nombre del acudiente/i), 'Ana');
     await user.type(screen.getByLabelText(/documento del acudiente/i), '10203040');
@@ -164,7 +164,7 @@ describe('Formulario guardián — validación numérica estricta', () => {
     const { onSubmit } = renderMinorForm();
 
     await user.type(screen.getByLabelText(/nombres/i), 'Pedro');
-    await user.type(getStudentDocInput(), '12345678');
+    await user.type(getStudentDocInput(), '1012345678');
     await activateMinor(user);
     await user.type(screen.getByLabelText(/nombre del acudiente/i), 'Ana');
     // No escribimos guardianDocument

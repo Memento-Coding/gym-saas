@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { ConsentConfig } from '@/types/consent';
 import type { Student } from '@/types/student';
+import { formatDocument } from '@/utils/validation';
 
 const PAGE_MARGIN = 20;
 const LINE_HEIGHT = 7;
@@ -69,13 +70,13 @@ export async function generateConsentPDF(
 
   const studentData = [
     `Nombre: ${student.firstName} ${student.lastName}`,
-    `Documento: ${student.documentId}`,
+    `Documento: ${formatDocument(student.documentId, student.documentType)}`,
     `Menor de edad: ${student.isMinor ? 'Sí' : 'No'}`,
   ];
 
   if (student.isMinor && student.guardianName) {
     studentData.push(`Acudiente: ${student.guardianName}`);
-    studentData.push(`Documento acudiente: ${student.guardianDocument}`);
+    studentData.push(`Documento acudiente: ${formatDocument(student.guardianDocument, student.guardianDocumentType)}`);
   }
 
   if (student.consent.byGuardian) {
