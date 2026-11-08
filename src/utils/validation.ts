@@ -20,12 +20,13 @@
  *  - DB     → índice único / condition expression (futuro DynamoDB).
  */
 
+import { differenceInYears } from 'date-fns';
 import { z } from 'zod';
 
 import type { StorageService } from '@/services/storage/StorageService';
 import { getStorageService } from '@/services/storage/StorageService';
 import type { MembershipPlan } from '@/types/membership';
-import type { Student } from '@/types/student';
+import type { DocumentTypeCode, Student } from '@/types/student';
 
 // =============================================================================
 // Tipos compartidos
@@ -59,30 +60,66 @@ export const messages = {
     `${endLabel} no puede ser anterior a ${startLabel}.`,
   futureDate: (label: string) => `${label} no puede ser una fecha futura.`,
   duplicate: (label: string) => `${label} ya se encuentra registrado.`,
+  tooLong: (label: string, max: number) =>
+    `${label} no puede superar ${max} caracteres.`,
 } as const;
 
-// =============================================================================
-// 1. Documentos (solo dígitos + unicidad)
-// =============================================================================
-
-/** Regex de documento: solo dígitos, longitud razonable [4, 20]. */
-const DOCUMENT_RE = /^\d{4,20}$/;
-
 /**
- * Schema estricto de documento: cadena de solo dígitos (4–20).
- * Rechaza letras, espacios y caracteres especiales.
+ * Exige contenido o permite vacío antes de aplicar `base`, para que un campo
+ * obligatorio en blanco reporte "es obligatorio" y no un error de formato.
  */
-export function documentSchema(label = 'El documento') {
-  return z
-    .string({ error: messages.required(label) })
-    .trim()
-    .min(1, { message: messages.required(label) })
-    .regex(DOCUMENT_RE, { message: messages.onlyDigits(label) });
+function presence<T extends z.ZodType<unknown, string>>(base: T, label: string, required: boolean) {
+  const trimmed = z.string().trim();
+  return required
+    ? trimmed.min(1, { message: messages.required(label) }).pipe(base)
+    : trimmed.pipe(z.union([z.literal(''), base])).optional();
 }
 
-/** Predicado puro: ¿el documento tiene formato válido (solo dígitos)? */
-export function isValidDocumentFormat(value: string): boolean {
-  return DOCUMENT_RE.test(value.trim());
+// =============================================================================
+// 1. Documentos de identidad colombianos (formato por tipo + unicidad)
+// =============================================================================
+
+/** Catálogo único de tipos de documento aceptados en Colombia. */
+export const DOCUMENT_TYPES: readonly {
+  value: DocumentTypeCode;
+  label: string;
+  pattern: RegExp;
+  hint: string;
+  forMinors: boolean;
+  forAdults: boolean;
+}[] = [
+  // Mínimo 4: las cédulas antiguas tienen pocos dígitos y son válidas.
+  { value: 'CC', label: 'Cédula de ciudadanía', pattern: /^[1-9]\d{3,9}$/, hint: '4 a 10 dígitos', forMinors: false, forAdults: true },
+  { value: 'TI', label: 'Tarjeta de identidad', pattern: /^\d{10,11}$/, hint: '10 u 11 dígitos', forMinors: true, forAdults: false },
+  { value: 'RC', label: 'Registro civil', pattern: /^\d{8,11}$/, hint: '8 a 11 dígitos', forMinors: true, forAdults: false },
+  { value: 'CE', label: 'Cédula de extranjería', pattern: /^\d{4,10}$/, hint: '4 a 10 dígitos', forMinors: true, forAdults: true },
+  { value: 'PA', label: 'Pasaporte', pattern: /^[A-Z0-9]{5,16}$/, hint: '5 a 16 letras o números', forMinors: true, forAdults: true },
+  { value: 'PPT', label: 'Permiso por Protección Temporal', pattern: /^\d{4,15}$/, hint: '4 a 15 dígitos', forMinors: true, forAdults: true },
+  { value: 'PEP', label: 'Permiso Especial de Permanencia', pattern: /^\d{15}$/, hint: '15 dígitos', forMinors: true, forAdults: true },
+];
+
+/** Ficha del tipo de documento (CC si el registro es anterior a este campo). */
+export function getDocumentType(code: DocumentTypeCode = 'CC') {
+  return DOCUMENT_TYPES.find((t) => t.value === code) ?? DOCUMENT_TYPES[0];
+}
+
+/** Mensaje de error del número según su tipo, o null si es válido. */
+export function documentFormatError(
+  value: string,
+  type: DocumentTypeCode = 'CC',
+  label = 'El documento',
+): string | null {
+  const { value: code, pattern, hint } = getDocumentType(type);
+  const normalized = value.trim().toUpperCase();
+  if (pattern.test(normalized)) return null;
+  return code !== 'PA' && /\D/.test(normalized)
+    ? messages.onlyDigits(label)
+    : `${label} no es válido para ${code}: debe tener ${hint}.`;
+}
+
+/** Presenta el documento con su tipo ("CC 1020304050"). */
+export function formatDocument(documentId: string, type?: DocumentTypeCode): string {
+  return type && documentId ? `${type} ${documentId}` : documentId;
 }
 
 /**
@@ -114,11 +151,13 @@ export async function isDocumentUnique(
   document: string,
   storage?: StorageService,
   excludeId?: string,
+  type: DocumentTypeCode = 'CC',
 ): Promise<ServiceResult<string>> {
-  const target = document.trim();
+  const target = document.trim().toUpperCase();
 
-  if (!isValidDocumentFormat(target)) {
-    return { success: false, error: messages.onlyDigits('El documento') };
+  const formatError = documentFormatError(target, type);
+  if (formatError) {
+    return { success: false, error: formatError };
   }
 
   const svc = storage ?? (await getStorageService());
@@ -135,44 +174,69 @@ export async function isDocumentUnique(
 // 2. Teléfono y Email
 // =============================================================================
 
-/**
- * Regex de teléfono: solo dígitos, longitud 7–15 (E.164 sin prefijo +).
- * Acepta teléfonos locales colombianos (7 dígitos) y móviles (10 dígitos)
- * así como números internacionales hasta 15 dígitos.
- */
-const PHONE_RE = /^\d{7,15}$/;
+/** Celular (3XX + 7 dígitos) o fijo nacional (60 + indicativo + 7 dígitos). */
+const PHONE_RE = /^(3\d{9}|60\d{8})$/;
 
-/**
- * Schema de teléfono: solo dígitos, longitud 7–15.
- * Rechaza letras, espacios y caracteres especiales.
- */
+/** Quita separadores y el indicativo +57 para guardar los 10 dígitos. */
+function normalizePhone(value: string): string {
+  return value.replace(/[\s().-]/g, '').replace(/^\+?57(?=\d{10}$)/, '');
+}
+
+/** Schema de teléfono colombiano; el valor resultante queda en 10 dígitos. */
 export function phoneSchema(label = 'El teléfono', required = false) {
-  const base = z
-    .string()
-    .trim()
-    .regex(PHONE_RE, { message: `${label} solo puede contener números (7–15 dígitos).` });
-  return required
-    ? base.min(1, { message: messages.required(label) })
-    : z.union([z.literal(''), base]).optional();
+  const base = z.string().overwrite(normalizePhone).regex(PHONE_RE, {
+    message: `${label} debe ser un celular de 10 dígitos que inicie en 3 o un fijo que inicie en 60.`,
+  });
+  return presence(base, label, required);
 }
 
-/** Predicado puro: ¿el teléfono tiene formato válido? */
+/** Predicado puro: ¿el teléfono es un número colombiano válido? */
 export function isValidPhone(value: string): boolean {
-  return PHONE_RE.test(value.trim());
+  return PHONE_RE.test(normalizePhone(value.trim()));
 }
 
-/**
- * Schema de email con validación de formato estándar.
- * Campo opcional por defecto.
- */
+/** Schema de email: formato estándar, en minúsculas. */
 export function emailSchema(label = 'El email', required = false) {
   const base = z
     .string()
-    .trim()
+    .max(254, { message: messages.tooLong(label, 254) })
+    .toLowerCase()
     .email({ message: `${label} no es una dirección válida.` });
+  return presence(base, label, required);
+}
+
+// =============================================================================
+// 2b. Nombres, texto libre y contraseñas
+// =============================================================================
+
+const PERSON_NAME_RE = /^\p{L}[\p{L}\p{M}' .-]*$/u;
+
+/** Nombre de persona: letras (con tildes y ñ), espacios, apóstrofo y guion. */
+export function personNameSchema(label = 'El nombre', required = true) {
+  const base = z
+    .string()
+    .min(2, { message: `${label} debe tener al menos 2 letras.` })
+    .max(60, { message: messages.tooLong(label, 60) })
+    .regex(PERSON_NAME_RE, { message: `${label} solo puede contener letras.` });
+  return presence(base, label, required);
+}
+
+/** Texto libre sin espacios sobrantes y con longitud acotada. */
+export function textSchema(label: string, required = false, max = 200) {
+  const base = z.string().trim().max(max, { message: messages.tooLong(label, max) });
   return required
     ? base.min(1, { message: messages.required(label) })
-    : z.union([z.literal(''), base]).optional();
+    : base.optional();
+}
+
+/** Contraseña con la misma política del user pool de Cognito. */
+export function passwordSchema() {
+  return z
+    .string()
+    .min(8, { message: 'La contraseña debe tener al menos 8 caracteres.' })
+    .regex(/[a-z]/, { message: 'La contraseña debe incluir una minúscula.' })
+    .regex(/[A-Z]/, { message: 'La contraseña debe incluir una mayúscula.' })
+    .regex(/\d/, { message: 'La contraseña debe incluir un número.' });
 }
 
 // =============================================================================
@@ -194,6 +258,44 @@ export function nonNegativeAmount(label = 'El monto', max = 10_000_000) {
     .refine((n) => n <= max, { message: messages.range(label, 0, max) });
 }
 
+/**
+ * Entero estricto: a diferencia de `z.coerce`, no acepta '', '1e3' ni '0x10'.
+ * Sin `required`, el vacío se resuelve como `undefined`.
+ */
+function strictInteger(
+  label: string,
+  rangeError: (n: number) => string | null,
+  required = true,
+) {
+  return z.unknown().transform((raw, ctx) => {
+    const text = String(raw ?? '').trim();
+    if (text === '' && !required) return undefined;
+    const n = Number(text);
+    const message =
+      text === ''
+        ? messages.required(label)
+        : /^-?\d+$/.test(text)
+          ? rangeError(n)
+          : messages.onlyDigits(label);
+    if (message) {
+      // continue: deja correr los superRefine y reportar todos los campos a la vez.
+      ctx.addIssue({ code: 'custom', message, continue: true });
+      return undefined;
+    }
+    return n;
+  });
+}
+
+/** Monto en pesos colombianos: entero (el COP no maneja centavos) y no negativo. */
+export function copAmount(label = 'El monto', required = true, max = 10_000_000) {
+  return strictInteger(
+    label,
+    (n) =>
+      n < 0 ? messages.negative(label) : n > max ? messages.range(label, 0, max) : null,
+    required,
+  );
+}
+
 /** Predicado puro: ¿es un monto monetario válido (finito y ≥ 0)? */
 export function isValidAmount(value: number): boolean {
   return Number.isFinite(value) && value >= 0;
@@ -208,13 +310,9 @@ export function isValidAmount(value: number): boolean {
  * Rechaza decimales y no numéricos.
  */
 export function integerInRange(label: string, min: number, max: number) {
-  return z.coerce
-    .number({ error: messages.onlyDigits(label) })
-    .refine((n) => Number.isFinite(n), { message: messages.onlyDigits(label) })
-    .refine((n) => Number.isInteger(n), { message: messages.integer(label) })
-    .refine((n) => n >= min && n <= max, {
-      message: messages.range(label, min, max),
-    });
+  return strictInteger(label, (n) =>
+    n >= min && n <= max ? null : messages.range(label, min, max),
+  );
 }
 
 /** Entero positivo `[1, max]` (ej. clases por mes, días de congelamiento). */
@@ -282,13 +380,33 @@ export function addMonthsUTC(date: Date, months: number): Date {
   return result;
 }
 
-/** Schema de fecha ISO válida. */
+/** ¿La fecha ISO es posterior a hoy? */
+export function isFutureDate(iso: string): boolean {
+  return iso.slice(0, 10) > toIsoDateUTC(new Date());
+}
+
+/** Edad cumplida a hoy para una fecha de nacimiento ISO. */
+export function ageFromBirthDate(iso: string): number {
+  return differenceInYears(new Date(), parseIsoDateUTC(iso));
+}
+
+/** Schema de fecha ISO válida; el rango de años atrapa errores como 0202. */
 export function isoDateSchema(label = 'La fecha') {
   return z
     .string({ error: messages.required(label) })
     .trim()
     .min(1, { message: messages.required(label) })
-    .refine(isValidIsoDate, { message: messages.invalidDate(label) });
+    .refine((v) => isValidIsoDate(v) && v >= '1900' && v < '2101', {
+      message: messages.invalidDate(label),
+    });
+}
+
+/** Fecha de nacimiento: no futura y con una edad humanamente posible. */
+export function birthDateSchema(label = 'La fecha de nacimiento', required = false) {
+  const base = isoDateSchema(label)
+    .refine((v) => !isFutureDate(v), { message: messages.futureDate(label) })
+    .refine((v) => ageFromBirthDate(v) <= 120, { message: messages.invalidDate(label) });
+  return presence(base, label, required);
 }
 
 /** ¿`end` es igual o posterior a `start`? (ambos ISO). */

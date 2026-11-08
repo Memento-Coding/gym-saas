@@ -125,9 +125,11 @@ export function SplitPaymentEditor({
                   type="text"
                   inputMode="numeric"
                   value={Number.isFinite(split.amount) ? split.amount : ''}
-                  onChange={(e) =>
-                    updateRow(index, { amount: e.target.value === '' ? 0 : Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    if (/^\d*$/.test(e.target.value)) {
+                      updateRow(index, { amount: Number(e.target.value) });
+                    }
+                  }}
                 />
               </div>
 

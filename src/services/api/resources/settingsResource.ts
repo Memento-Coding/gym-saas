@@ -163,7 +163,8 @@ export class SettingsResource {
   }
 
   private readFormFields(s: ApiSettings): FormFieldConfig[] {
-    return (s.formFields ?? []).map((f, index) => ({
+    // Sin label son los defaults del backend, no una elección del gimnasio.
+    return (s.formFields ?? []).filter((f) => f.label).map((f, index) => ({
       id: f.name ?? `field_${index}`,
       name: f.name ?? '',
       label: f.label ?? f.name ?? '',
@@ -185,7 +186,9 @@ export class SettingsResource {
   }
 
   private toFieldType(type: string): FormFieldConfig['type'] {
-    if (type === 'number' || type === 'date' || type === 'select') return type;
+    if (['number', 'date', 'select', 'email', 'tel'].includes(type)) {
+      return type as FormFieldConfig['type'];
+    }
     return 'text';
   }
 }

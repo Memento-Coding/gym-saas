@@ -19,6 +19,8 @@ import { motion } from 'framer-motion';
 import { CreditCard, Pencil, Snowflake, Sun, Trash2 } from 'lucide-react';
 
 import type { Student } from '@/types/student';
+import type { FormFieldConfig } from '@/types/settings';
+import { DEFAULT_STUDENT_FIELDS } from '@/components/students/studentFormFields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,13 +41,15 @@ import {
   paymentBadgeStyle,
   statusBadgeStyle,
 } from './studentStatus';
-import { positiveInteger } from '@/utils/validation';
+import { formatDocument, positiveInteger } from '@/utils/validation';
 
 /** Botón con feedback de press (Apple fluid). */
 const MotionButton = motion.create(Button);
 
 export interface StudentProfileProps {
   student: Student | null;
+  /** Campos configurados en Ajustes, para mostrar los que no son fijos del perfil. */
+  fields?: FormFieldConfig[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: (student: Student) => void;
@@ -59,6 +63,7 @@ export interface StudentProfileProps {
 
 export function StudentProfile({
   student,
+  fields = [],
   open,
   onOpenChange,
   onEdit,
@@ -141,7 +146,7 @@ export function StudentProfile({
               </Badge>
             </div>
             <DialogDescription>
-              Documento: {student.documentId || '—'}
+              Documento: {formatDocument(student.documentId, student.documentType) || '—'}
             </DialogDescription>
           </DialogHeader>
 
@@ -187,11 +192,25 @@ export function StudentProfile({
                 label="Acudiente"
                 value={
                   student.guardianName
-                    ? `${student.guardianName} (${student.guardianDocument || 's/d'})`
+                    ? `${student.guardianName} (${formatDocument(student.guardianDocument, student.guardianDocumentType) || 's/d'})`
                     : '—'
                 }
               />
             )}
+            {fields
+              .filter((f) => !DEFAULT_STUDENT_FIELDS.some((d) => d.name === f.name))
+              .map((f) => {
+                const value =
+                  student.customFields?.[f.name] ??
+                  (student as unknown as Record<string, unknown>)[f.name];
+                return (
+                  <DetailRow
+                    key={f.id}
+                    label={f.label}
+                    value={value === undefined || value === '' ? '—' : String(value)}
+                  />
+                );
+              })}
           </div>
 
           {/* Acciones */}
@@ -282,6 +301,7 @@ export function StudentProfile({
               <Label htmlFor="freeze-reason">Motivo</Label>
               <Textarea
                 id="freeze-reason"
+                maxLength={200}
                 value={freezeReason}
                 onChange={(e) => { setFreezeReason(e.target.value); setFreezeReasonError(''); }}
                 placeholder="Ej. Lesión, viaje, etc."

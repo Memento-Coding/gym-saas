@@ -33,6 +33,7 @@ const DIFF_FIELDS: (keyof Student)[] = [
   'firstName',
   'lastName',
   'documentId',
+  'documentType',
   'phone',
   'email',
   'dateOfBirth',
@@ -46,6 +47,7 @@ const DIFF_FIELDS: (keyof Student)[] = [
   'isMinor',
   'guardianName',
   'guardianDocument',
+  'guardianDocumentType',
   'medicalNotes',
   'photo',
   'status',
@@ -59,6 +61,7 @@ const DIFF_FIELDS: (keyof Student)[] = [
 function hasChanges(next: Student, prev: Student): boolean {
   return (
     DIFF_FIELDS.some((field) => next[field] !== prev[field]) ||
+    JSON.stringify(next.customFields ?? {}) !== JSON.stringify(prev.customFields ?? {}) ||
     // Campo a campo: la API puede devolver las claves de consent en otro orden.
     next.consent.signature !== prev.consent.signature ||
     next.consent.signed !== prev.consent.signed ||

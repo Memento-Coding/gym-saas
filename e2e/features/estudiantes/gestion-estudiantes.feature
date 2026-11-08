@@ -21,7 +21,7 @@ Característica: Gestión de estudiantes
   Escenario: Administrador registra un nuevo estudiante
     Cuando accede al módulo de estudiantes
     Y abre el formulario de nuevo estudiante
-    Y registra al estudiante "Carlos" "López" con documento "50607080" plan "Plan Básico genérico" y vencimiento "2026-12-31"
+    Y registra al estudiante "Carlos" "López" con documento "50607080" plan "Básico" y vencimiento "2026-12-31"
     Entonces debería ver la confirmación de que el estudiante fue registrado
     Y debería ver a "Carlos López" en la lista de estudiantes
 

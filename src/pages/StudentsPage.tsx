@@ -13,6 +13,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSettings } from '@/hooks/useSettings';
+import { useMemberships } from '@/hooks/useMemberships';
 import { motion } from 'framer-motion';
 import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,7 +43,7 @@ import { StudentList } from '@/components/students/StudentList';
 import { StudentProfile } from '@/components/students/StudentProfile';
 import { StudentForm } from '@/components/students/StudentForm';
 import {
-  DEFAULT_STUDENT_FIELDS,
+  resolveStudentFields,
   buildStudentDefaults,
 } from '@/components/students/studentFormFields';
 
@@ -56,6 +58,15 @@ export function StudentsPage() {
   const [query, setQuery] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilterValue>(ALL);
   const [ageGroup, setAgeGroup] = useState<AgeFilterValue>(ALL);
+
+  // Campos que este gimnasio configuró en Ajustes.
+  const { formFields } = useSettings();
+  const studentFields = useMemo(() => resolveStudentFields(formFields), [formFields]);
+  const { groupPlans, personalizedPlans } = useMemberships();
+  const plans = useMemo(
+    () => ({ memberships: groupPlans, personalized: personalizedPlans }),
+    [groupPlans, personalizedPlans],
+  );
 
   // Colección visible tras aplicar búsqueda + filtros.
   const [visible, setVisible] = useState<Student[]>([]);
@@ -198,6 +209,7 @@ export function StudentsPage() {
       {/* Perfil */}
       <StudentProfile
         student={selectedFresh}
+        fields={studentFields}
         open={profileOpen}
         onOpenChange={setProfileOpen}
         onPayments={(s) => navigate(`/estudiantes/${encodeURIComponent(s.id)}`)}
@@ -224,7 +236,8 @@ export function StudentsPage() {
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <StudentForm
               key={editing?.id ?? 'new'}
-              fields={DEFAULT_STUDENT_FIELDS}
+              fields={studentFields}
+              plans={plans}
               defaultValues={editing ?? undefined}
               onSubmit={handleSubmit}
               isLoading={isLoading}
