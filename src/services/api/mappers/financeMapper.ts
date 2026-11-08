@@ -24,6 +24,9 @@ export interface ApiFinanceMovement {
   studentId?: string;
   transferTo?: string;
   inventoryItemId?: string;
+  /** La API guarda el concepto en `note` y la fecha en `createdAt`. */
+  note?: string;
+  createdAt?: string;
   [key: string]: unknown;
 }
 
@@ -34,9 +37,10 @@ function toBox(value: string | undefined): FinanceMovement['box'] {
 export function apiToFinance(api: ApiFinanceMovement): FinanceMovement {
   return {
     id: api.id,
-    type: api.type ?? 'income',
-    date: api.date ?? '',
-    concept: api.concept ?? '',
+    // La API guarda cada traslado como egreso + ingreso de categoría 'transfer'.
+    type: api.category === 'transfer' ? 'transfer' : (api.type ?? 'income'),
+    date: api.date ?? api.createdAt ?? '',
+    concept: api.concept ?? api.note ?? '',
     category: api.category ?? '',
     amount: api.amount ?? 0,
     box: toBox(api.box ?? api.account),
@@ -53,6 +57,7 @@ export function financeToApi(m: FinanceMovement): Record<string, unknown> {
     type: m.type,
     date: m.date,
     concept: m.concept,
+    note: m.concept,
     category: m.category,
     amount: m.amount,
     // account es el nombre canónico en la API; box se envía como espejo.
