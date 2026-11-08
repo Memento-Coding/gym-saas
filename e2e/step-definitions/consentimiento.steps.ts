@@ -3,12 +3,12 @@
  * Steps para: features/consentimiento/gestion-consentimientos.feature
  */
 
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { Given, When, Then } from '../support/world';
 import { ConsentPage } from '../pages/ConsentPage';
 import { TEST_STUDENT, TEST_MINOR_STUDENT } from '../fixtures/students';
 import { DEFAULT_CONSENT_CONFIG, signedConsentFor, unsignedConsent } from '../fixtures/consent';
-import { seedAll } from '../helpers/seed';
+import { lsGet, seedAll } from '../helpers/seed';
 
 let consentPage: ConsentPage;
 
@@ -142,4 +142,55 @@ Then('debería ver el canvas para capturar la firma', async ({}) => {
 
 Then('debería ver el botón de descarga del PDF firmado', async ({}) => {
   await expect(consentPage.btnDescargarPDF()).toBeVisible();
+});
+
+// ── Firma real y ataques ──────────────────────────────────────────────────────
+
+type ConsentGuardado = {
+  firstName: string;
+  lastName: string;
+  consent: { signed: boolean; signedVersion: number; signature: string };
+};
+
+const consentGuardado = async (page: Page, nombre: string) => {
+  await page.waitForTimeout(300);
+  const estudiantes = (await lsGet<ConsentGuardado[]>(page, 'students')) ?? [];
+  return estudiantes.find((s) => `${s.firstName} ${s.lastName}` === nombre)?.consent;
+};
+
+When('firma el consentimiento de {string}', async ({ page }, nombre: string) => {
+  await consentPage.abrirDialogoFirma(nombre);
+  const caja = await consentPage.canvasFirma.boundingBox();
+  if (!caja) throw new Error('Canvas de firma no visible');
+  await page.mouse.move(caja.x + 30, caja.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(caja.x + 160, caja.y + 70, { steps: 8 });
+  await page.mouse.up();
+  await page.getByRole('dialog').getByRole('button', { name: /confirmar firma/i }).click();
+});
+
+When('intenta guardar una versión con el texto vacío', async ({}) => {
+  await consentPage.abrirEdicion();
+  await consentPage.textareaEdicion.first().fill('');
+  await consentPage.btnGuardarVersion.click({ timeout: 1500 }).catch(() => undefined);
+});
+
+Then('el consentimiento de {string} debería quedar firmado en la versión vigente', async ({ page }, nombre: string) => {
+  const consent = await consentGuardado(page, nombre);
+  expect(consent?.signed).toBe(true);
+  expect(consent?.signature).toMatch(/^data:image/);
+});
+
+Then('no debería poder confirmar la firma', async ({ page }) => {
+  await expect(page.getByRole('dialog').getByRole('button', { name: /confirmar firma/i })).toBeDisabled();
+});
+
+Then('el consentimiento de {string} no debería quedar firmado', async ({ page }, nombre: string) => {
+  expect((await consentGuardado(page, nombre))?.signed).toBe(false);
+});
+
+Then('{string} debería seguir sin pendientes de firma', async ({ page }, nombre: string) => {
+  const consent = await consentGuardado(page, nombre);
+  const config = await lsGet<{ version: number }>(page, 'consent_config');
+  expect(consent?.signedVersion).toBe(config?.version);
 });

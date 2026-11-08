@@ -41,7 +41,8 @@ import type { MembershipPlan } from '@/types/membership';
 import {
   toIsoDateUTC,
   selectFromSource,
-  nonNegativeAmount,
+  copAmount,
+  textSchema,
 } from '@/utils/validation';
 
 const PAYMENT_STATUSES = ['paid', 'upgrade', 'credit'] as const;
@@ -97,8 +98,8 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
       status: z.enum(PAYMENT_STATUSES),
       method: z.enum(PAYMENT_METHODS),
       // Monto monetario: sin texto, sin negativos (STEERING_FORMS §1).
-      discount: nonNegativeAmount('El descuento'),
-      discountReason: z.string().optional().default(''),
+      discount: copAmount('El descuento', false),
+      discountReason: textSchema('La razón del descuento'),
       useSplit: z.boolean().default(false),
       // Zod descarta las claves que no declare el esquema.
       initialPayment: z.string().optional().default(''),
@@ -114,6 +115,19 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
           path: ['discount'],
           message: 'El descuento no puede ser mayor o igual al precio del plan.',
         });
+      }
+
+      // El abono solo se captura (y por tanto se valida) en pagos a crédito.
+      if (data.status === 'credit') {
+        const initial = copAmount('El abono inicial', false).safeParse(data.initialPayment);
+        const message = !initial.success
+          ? initial.error.issues[0]?.message
+          : plan && Number(initial.data ?? 0) > plan.price - Number(data.discount ?? 0)
+            ? 'El abono inicial no puede superar el total a pagar.'
+            : undefined;
+        if (message) {
+          ctx.addIssue({ code: 'custom', path: ['initialPayment'], message });
+        }
       }
     });
 }
@@ -310,10 +324,6 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
           <FormField
             control={form.control}
             name="discount"
-            rules={{
-              validate: (v) =>
-                v === '' || Number(v) >= 0 || 'El descuento no puede ser negativo.',
-            }}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Descuento (monto)</FormLabel>
@@ -351,10 +361,6 @@ export function PaymentForm({ studentId, onSubmit, submitting = false }: Payment
             <FormField
               control={form.control}
               name="initialPayment"
-              rules={{
-                validate: (v) =>
-                  v === '' || Number(v) >= 0 || 'El abono inicial no puede ser negativo.',
-              }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Abono inicial</FormLabel>

@@ -13,6 +13,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 import { resetPassword, confirmResetPassword } from '@/services/auth';
+import { passwordSchema } from '@/utils/validation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,8 +66,9 @@ export function ForgotPasswordPage() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres');
+    const strength = passwordSchema().safeParse(newPassword);
+    if (!strength.success) {
+      setError(strength.error.issues[0].message);
       return;
     }
 
@@ -129,7 +131,7 @@ export function ForgotPasswordPage() {
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  <Link to="/login" className="text-primary hover:underline">
+                  <Link to="/login" className="text-primary underline underline-offset-4">
                     Volver al inicio de sesión
                   </Link>
                 </p>
@@ -147,6 +149,8 @@ export function ForgotPasswordPage() {
                     onChange={(e) => setCode(e.target.value)}
                     required
                     maxLength={6}
+                    pattern="\d{6}"
+                    title="Ingresa los 6 dígitos del código"
                     autoComplete="one-time-code"
                   />
                 </div>
@@ -156,7 +160,7 @@ export function ForgotPasswordPage() {
                   <Input
                     id="new-password"
                     type="password"
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder="8+ caracteres, mayúscula, minúscula y número"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
@@ -195,7 +199,7 @@ export function ForgotPasswordPage() {
                       setNewPassword('');
                       setConfirmPassword('');
                     }}
-                    className="text-primary hover:underline"
+                    className="text-primary underline underline-offset-4"
                   >
                     Volver al inicio de sesión
                   </button>

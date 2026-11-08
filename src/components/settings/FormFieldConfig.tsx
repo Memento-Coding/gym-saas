@@ -2,9 +2,9 @@
  * FormFieldConfig — Configuración de campos dinámicos del formulario de registro.
  *
  * Permite:
- * - Listar campos con nombre, tipo y obligatoriedad
+ * - Elegir qué campos del sistema pide el gimnasio y cuáles son obligatorios
  * - Agregar nuevos campos personalizados
- * - Editar nombre y obligatoriedad
+ * - Editar nombre, opciones y obligatoriedad
  * - Eliminar campos (con confirmación)
  *
  * Requirements: 15.6, 15.7, 15.8, 15.9
@@ -34,6 +34,11 @@ import {
 import { Plus, Trash2, Pencil, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FormFieldConfig as FormFieldConfigType } from '@/types/settings';
+import {
+  LOCKED_STUDENT_FIELDS,
+  STUDENT_FIELD_CATALOG,
+  resolveStudentFields,
+} from '@/components/students/studentFormFields';
 
 interface FormFieldConfigProps {
   fields: FormFieldConfigType[];
@@ -53,17 +58,36 @@ function generateId(): string {
   return `field_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** El prefijo evita chocar con claves del estudiante; sin puntos, que RHF lee como rutas. */
+function fieldKey(label: string): string {
+  const slug = label
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  return slug && `custom_${slug}`;
+}
+
+function parseOptions(text: string): string[] {
+  return [...new Set(text.split(',').map((o) => o.trim()).filter(Boolean))];
+}
+
 export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) {
-  const [localFields, setLocalFields] = useState<FormFieldConfigType[]>(fields);
+  const [localFields, setLocalFields] = useState<FormFieldConfigType[]>(() =>
+    resolveStudentFields(fields),
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editRequired, setEditRequired] = useState(false);
+  const [editOptions, setEditOptions] = useState('');
 
   // Add field state
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<FormFieldConfigType['type']>('text');
   const [newRequired, setNewRequired] = useState(false);
+  const [newOptions, setNewOptions] = useState('');
 
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -71,19 +95,43 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
 
   const [saving, setSaving] = useState(false);
 
+  /** Mensaje de error del nombre y las opciones, o null si son válidos. */
+  const definitionError = (
+    label: string,
+    type: FormFieldConfigType['type'],
+    options: string[],
+    ownId?: string,
+  ): string | null => {
+    if (!label) return 'El nombre del campo es obligatorio.';
+    if (label.length > 40) return 'El nombre del campo no puede superar 40 caracteres.';
+    if (!fieldKey(label)) return 'El nombre del campo debe contener letras o números.';
+    const taken = localFields.some(
+      (f) => f.id !== ownId && f.label.toLowerCase() === label.toLowerCase(),
+    );
+    if (taken) return 'Ya existe un campo con ese nombre.';
+    if (type === 'select' && options.length === 0) {
+      return 'Escribe al menos una opción, separadas por comas.';
+    }
+    return null;
+  };
+
   const handleAddField = () => {
-    if (!newName.trim()) {
-      toast.error('El nombre del campo es obligatorio.');
+    const label = newName.trim();
+    const options = parseOptions(newOptions);
+    const problem = definitionError(label, newType, options);
+    if (problem) {
+      toast.error(problem);
       return;
     }
 
     const newField: FormFieldConfigType = {
       id: generateId(),
-      name: newName.trim().toLowerCase().replace(/\s+/g, '_'),
-      label: newName.trim(),
+      name: fieldKey(label),
+      label,
       type: newType,
       required: newRequired,
       isBuiltIn: false,
+      ...(newType === 'select' && { options }),
     };
 
     const updated = [...localFields, newField];
@@ -91,6 +139,7 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
     setNewName('');
     setNewType('text');
     setNewRequired(false);
+    setNewOptions('');
     setShowAddForm(false);
 
     saveFields(updated);
@@ -100,17 +149,24 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
     setEditingId(field.id);
     setEditName(field.label);
     setEditRequired(field.required);
+    setEditOptions((field.options ?? []).join(', '));
   };
 
   const handleSaveEdit = () => {
-    if (!editName.trim()) {
-      toast.error('El nombre del campo es obligatorio.');
+    const current = localFields.find((f) => f.id === editingId);
+    if (!current) return;
+    const label = editName.trim();
+    const options = parseOptions(editOptions);
+    const problem = definitionError(label, current.type, options, current.id);
+    if (problem) {
+      toast.error(problem);
       return;
     }
 
+    // `name` no cambia: es la clave bajo la que ya están guardados los datos.
     const updated = localFields.map((f) =>
       f.id === editingId
-        ? { ...f, label: editName.trim(), name: editName.trim().toLowerCase().replace(/\s+/g, '_'), required: editRequired }
+        ? { ...f, label, required: editRequired, ...(f.type === 'select' && { options }) }
         : f,
     );
 
@@ -135,6 +191,14 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
     toast.success(`Campo "${fieldToDelete.label}" eliminado.`);
   };
 
+  const handleToggleBuiltIn = (field: FormFieldConfigType, enabled: boolean) => {
+    const updated = enabled
+      ? [...localFields, field]
+      : localFields.filter((f) => f.name !== field.name);
+    setLocalFields(updated);
+    saveFields(updated);
+  };
+
   const handleToggleRequired = (fieldId: string, checked: boolean) => {
     const updated = localFields.map((f) =>
       f.id === fieldId ? { ...f, required: checked } : f,
@@ -155,7 +219,6 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
   };
 
   const customFields = localFields.filter((f) => !f.isBuiltIn);
-  const builtInFields = localFields.filter((f) => f.isBuiltIn);
 
   return (
     <>
@@ -163,37 +226,66 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
         <CardHeader>
           <CardTitle>Campos del Formulario</CardTitle>
           <CardDescription>
-            Configura los campos del formulario de registro de estudiantes.
+            Elige qué datos pide tu gimnasio al registrar un estudiante.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {/* Built-in fields (read-only) */}
-          {builtInFields.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                Campos del sistema
-              </Label>
-              {builtInFields.map((field) => (
+          {/* Campos del sistema: el gimnasio elige cuáles pedir */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+              Campos del sistema
+            </Label>
+            {STUDENT_FIELD_CATALOG.map((catalogField) => {
+              const active = localFields.find((f) => f.name === catalogField.name);
+              const locked = LOCKED_STUDENT_FIELDS.has(catalogField.name);
+              return (
                 <div
-                  key={field.id}
+                  key={catalogField.id}
                   className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{field.label}</span>
+                    <span className="text-sm font-medium">{catalogField.label}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {FIELD_TYPE_LABELS[field.type]}
+                      {FIELD_TYPE_LABELS[catalogField.type]}
                     </Badge>
-                    {field.required && (
-                      <Badge variant="outline" className="text-xs">
-                        Obligatorio
-                      </Badge>
-                    )}
                   </div>
-                  <span className="text-xs text-muted-foreground">Sistema</span>
+                  {locked ? (
+                    <span className="text-xs text-muted-foreground">Siempre obligatorio</span>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <Checkbox
+                          id={`enabled-${catalogField.id}`}
+                          checked={Boolean(active)}
+                          onCheckedChange={(checked) =>
+                            handleToggleBuiltIn(catalogField, checked === true)
+                          }
+                          aria-label={`Pedir ${catalogField.label}`}
+                        />
+                        <Label htmlFor={`enabled-${catalogField.id}`} className="text-xs">
+                          Pedir
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Checkbox
+                          id={`required-${catalogField.id}`}
+                          checked={active?.required === true}
+                          disabled={!active}
+                          onCheckedChange={(checked) =>
+                            handleToggleRequired(active?.id ?? '', checked === true)
+                          }
+                          aria-label={`${catalogField.label} obligatorio`}
+                        />
+                        <Label htmlFor={`required-${catalogField.id}`} className="text-xs">
+                          Obligatorio
+                        </Label>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
 
           {/* Custom fields */}
           <div className="flex flex-col gap-2">
@@ -216,6 +308,15 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
                       className="flex-1 text-sm"
                       autoFocus
                     />
+                    {field.type === 'select' && (
+                      <Input
+                        value={editOptions}
+                        onChange={(e) => setEditOptions(e.target.value)}
+                        placeholder="Opciones, separadas por comas"
+                        aria-label="Opciones"
+                        className="flex-1 text-sm"
+                      />
+                    )}
                     <div className="flex items-center gap-1.5">
                       <Checkbox
                         id={`edit-required-${field.id}`}
@@ -310,9 +411,19 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
                     <SelectItem value="number">Número</SelectItem>
                     <SelectItem value="date">Fecha</SelectItem>
                     <SelectItem value="select">Selección</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="tel">Teléfono</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {newType === 'select' && (
+                <Input
+                  placeholder="Opciones, separadas por comas (Ej: S, M, L)"
+                  aria-label="Opciones"
+                  value={newOptions}
+                  onChange={(e) => setNewOptions(e.target.value)}
+                />
+              )}
               <div className="flex items-center gap-1.5">
                 <Checkbox
                   id="new-field-required"
@@ -336,6 +447,7 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
                     setNewName('');
                     setNewType('text');
                     setNewRequired(false);
+                    setNewOptions('');
                   }}
                 >
                   Cancelar

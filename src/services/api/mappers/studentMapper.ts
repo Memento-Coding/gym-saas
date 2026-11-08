@@ -16,7 +16,7 @@
  * @see gym-sass-infra/docs/DATA-MODEL.md — students
  */
 
-import type { Student } from '@/types/student';
+import type { DocumentTypeCode, Student } from '@/types/student';
 
 /** Forma (parcial) del Student devuelto por la API. */
 export interface ApiStudent {
@@ -120,11 +120,15 @@ export function apiToStudent(api: ApiStudent, prev?: Student): Student {
     firstName: api.firstName ?? base.firstName,
     lastName: api.lastName ?? base.lastName,
     documentId: api.documentId ?? base.documentId,
+    documentType: (api.customFields?.documentType as DocumentTypeCode | undefined) ?? base.documentType,
     phone: api.phone ?? base.phone,
     email: api.email ?? base.email,
     isMinor: api.isMinor ?? base.isMinor,
     guardianName: api.guardianName ?? base.guardianName,
     guardianDocument: api.guardianDoc ?? base.guardianDocument,
+    guardianDocumentType:
+      (api.customFields?.guardianDocumentType as DocumentTypeCode | undefined) ??
+      base.guardianDocumentType,
     dateOfBirth: api.dateOfBirth ?? base.dateOfBirth,
     bloodType: api.bloodType ?? base.bloodType,
     beltRank: api.beltGrade ?? base.beltRank,
@@ -184,6 +188,11 @@ export function studentToApi(student: Student): Record<string, unknown> {
     freezeEnd: student.freezeEndDate ?? '',
     consent: student.consent,
     telegramChatId: student.telegramChatId,
-    customFields: student.customFields,
+    // shortcut: el POST de la API descarta campos fuera de su struct; pasar a columnas propias cuando el backend las tenga.
+    customFields: {
+      ...student.customFields,
+      documentType: student.documentType,
+      guardianDocumentType: student.guardianDocumentType,
+    },
   };
 }

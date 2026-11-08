@@ -9,15 +9,20 @@ import type { ConsentRecord, ConsentHistoryEntry } from './consent';
 
 export type { ConsentRecord, ConsentHistoryEntry };
 
+/** Tipos de documento de identidad usados en Colombia. */
+export type DocumentTypeCode = 'CC' | 'TI' | 'RC' | 'CE' | 'PA' | 'PPT' | 'PEP';
+
 export interface Student {
   id: string;
   photo: string;
   firstName: string;
   lastName: string;
   documentId: string;
+  documentType?: DocumentTypeCode;
   isMinor: boolean;
   guardianName: string;
   guardianDocument: string;
+  guardianDocumentType?: DocumentTypeCode;
   phone: string;
   email: string;
   emergencyName: string;

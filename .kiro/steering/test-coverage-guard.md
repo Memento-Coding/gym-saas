@@ -8,6 +8,13 @@ Cada módulo de la aplicación debe tener pruebas de integración. Este steering
 
 ---
 
+## Estándar obligatorio
+
+Toda funcionalidad sigue `docs/STEERING_TESTING.md`: pruebas adversarias en cada capa,
+reglas de Gherkin y definición de terminado. CI lo hace cumplir.
+
+---
+
 ## Mapa de módulos y cobertura actual
 
 ### Módulos con cobertura COMPLETA ✅
@@ -18,8 +25,10 @@ Cada módulo de la aplicación debe tener pruebas de integración. Este steering
 | Comunicación | `CommunicationService.ts` | — | `e2e/features/comunicacion/gestion-comunicacion.feature` |
 | Cortesías | `CourtesyService.ts` | — | `e2e/features/cortesias/gestion-cortesias.feature` |
 | Ajustes | `BackupService.ts` + Settings | `src/services/BackupService.test.ts` | `e2e/features/ajustes/configuracion-sistema.feature` |
-| Pagos | `PaymentService.ts` + `ReceiptService.ts` | `src/__tests__/payments/PaymentService.test.ts` + `ReceiptService.test.ts` | — |
-| Finanzas | `FinanceService.ts` | `src/__tests__/FinanceService.test.ts` | — |
+| Pagos | `PaymentService.ts` + `ReceiptService.ts` | `src/__tests__/payments/PaymentService.test.ts` + `ReceiptService.test.ts` | `e2e/features/pagos/registro-pagos.feature` |
+| Finanzas | `FinanceService.ts` | `src/__tests__/FinanceService.test.ts` | `e2e/features/finanzas/traslados.feature` |
+| Ventas | `SaleService.ts` | — | `e2e/features/ventas/gestion-ventas.feature` |
+| Inventario | `InventoryService.ts` | — | `e2e/features/inventario/gestion-inventario.feature` |
 | Dashboard | `DashboardService.ts` | `src/__tests__/DashboardService.test.ts` | — |
 | Storage | `StorageService.ts` | `src/services/storage/StorageService.test.ts` | — |
 | Auth | `AuthService.ts` + `AuthProvider.tsx` | `src/services/auth/AuthService.test.ts` + `AuthProvider.test.tsx` + `ProtectedRoute.test.tsx` | — |
@@ -30,18 +39,15 @@ Cada módulo de la aplicación debe tener pruebas de integración. Este steering
 |---|---|---|
 | Comunicación | `CommunicationService.ts` | Tests unitarios del servicio |
 | Cortesías | `CourtesyService.ts` | Tests unitarios del servicio |
-| Estudiantes | `StudentService.ts` | Tests unitarios + pruebas E2E |
+| Estudiantes | `StudentService.ts` | Tests unitarios |
 | Membresía | `MembershipService.ts` | Tests unitarios |
 
 ### Módulos SIN cobertura ❌
 
 | Módulo | Página | Qué falta |
 |---|---|---|
-| Estudiantes | `StudentsPage.tsx` + `StudentProfilePage.tsx` | Tests unitarios de `StudentService.ts` + feature E2E |
 | Membresía | — | Tests unitarios de `MembershipService.ts` |
 | Login / Registro | `LoginPage.tsx` + `RegisterPage.tsx` + `ForgotPasswordPage.tsx` | Feature E2E de autenticación |
-| Finanzas | `FinancePage.tsx` | Feature E2E |
-| Pagos | — | Feature E2E |
 | Dashboard | `DashboardPage.tsx` | Feature E2E |
 
 ---
@@ -140,6 +146,7 @@ Cada feature debe tener como mínimo:
 - `@<nombre-modulo>` — en la Característica (ej: `@estudiantes`)
 - Al menos un escenario con `@smoke`
 - Al menos un escenario con `@critico`
+- Al menos un escenario con `@adversarial`
 
 ---
 
@@ -148,11 +155,8 @@ Cada feature debe tener como mínimo:
 Cuando el usuario pida agregar pruebas o implementar un módulo sin cobertura, prioriza en este orden:
 
 1. **`StudentService.ts`** — Tests unitarios (sin cobertura actual)
-2. **`e2e/features/estudiantes/`** — Feature E2E para `StudentsPage` y `StudentProfilePage`
 3. **`MembershipService.ts`** — Tests unitarios
 4. **`CommunicationService.ts`** — Tests unitarios (el E2E ya existe)
 5. **`CourtesyService.ts`** — Tests unitarios (el E2E ya existe)
-6. **`e2e/features/finanzas/`** — Feature E2E para `FinancePage`
-7. **`e2e/features/pagos/`** — Feature E2E (los unit tests ya existen)
 8. **`e2e/features/autenticacion/`** — Feature E2E para login/registro
 9. **`e2e/features/dashboard/`** — Feature E2E para `DashboardPage`

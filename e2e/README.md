@@ -2,6 +2,8 @@
 
 Guía completa para ejecutar, entender y extender el suite de pruebas E2E del proyecto.
 
+> **Las reglas para escribir pruebas están en [`docs/STEERING_TESTING.md`](../docs/STEERING_TESTING.md)** y son obligatorias: cada módulo incluye escenarios `@adversarial`.
+
 ---
 
 ## Tabla de contenidos

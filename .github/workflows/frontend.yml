@@ -29,9 +29,31 @@ jobs:
       - run: npm ci
       - run: npx vitest run
       - run: npm run build # sin VITE_* de un ambiente: solo valida que compila
+      # docs/STEERING_TESTING.md: sin escenarios adversarios no se integra.
+      - run: node --test scripts/check-test-standard.test.mjs
+      - run: node scripts/check-test-standard.mjs
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx bddgen && npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
 
   deploy:
-    needs: build
+    needs: [build, e2e]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'dev' }}

@@ -139,6 +139,7 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
           <Input
             id="wordmark"
             placeholder="Nombre de la academia"
+            maxLength={60}
             value={wordmark}
             onChange={(e) => setWordmark(e.target.value)}
           />
@@ -150,6 +151,7 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
           <Input
             id="tagline"
             placeholder="Tu eslogan aquí"
+            maxLength={120}
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
           />

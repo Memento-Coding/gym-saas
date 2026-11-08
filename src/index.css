@@ -108,48 +108,48 @@
 :root {
   /* ===== GymOps Color Palette ===== */
 
-  /* Primary — Índigo Profundo */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-900: #312e81;
+  /* Primary — Hierro (grafito) */
+  --color-primary-50: #e9ebea;
+  --color-primary-100: #dcdfe0;
+  --color-primary-200: #c5cacd;
+  --color-primary-500: #4a525b;
+  --color-primary-600: #23282e;
+  --color-primary-700: #16191d;
+  --color-primary-900: #1b1f23;
 
-  /* Secondary — Slate */
-  --color-secondary-50: #f8fafc;
-  --color-secondary-100: #f1f5f9;
-  --color-secondary-200: #e2e8f0;
-  --color-secondary-300: #cbd5e1;
-  --color-secondary-500: #64748b;
-  --color-secondary-700: #334155;
-  --color-secondary-900: #0f172a;
+  /* Secondary — Tiza (neutros) */
+  --color-secondary-50: #f3f4f3;
+  --color-secondary-100: #e9ebea;
+  --color-secondary-200: #dcdfe0;
+  --color-secondary-300: #bfc5c9;
+  --color-secondary-500: #59626c;
+  --color-secondary-700: #343a41;
+  --color-secondary-900: #1b1f23;
 
   /* Accent — Naranja Energético */
   --color-accent-50: #fff7ed;
   --color-accent-100: #ffedd5;
   --color-accent-400: #fb923c;
   --color-accent-500: #f97316;
-  --color-accent-600: #ea580c;
+  --color-accent-600: #c2410c;
 
   /* Success */
-  --color-success-50: #f0fdf4;
+  --color-success-50: #e9f7ee;
   --color-success-500: #22c55e;
   --color-success-700: #15803d;
 
   /* Warning */
-  --color-warning-50: #fffbeb;
+  --color-warning-50: #fdf1dc;
   --color-warning-500: #f59e0b;
-  --color-warning-700: #b45309;
+  --color-warning-700: #a34a06;
 
   /* Error */
-  --color-error-50: #fef2f2;
+  --color-error-50: #fdeaea;
   --color-error-500: #ef4444;
   --color-error-700: #b91c1c;
 
   /* Info */
-  --color-info-50: #eff6ff;
+  --color-info-50: #e8effd;
   --color-info-500: #3b82f6;
   --color-info-700: #1d4ed8;
 
@@ -168,9 +168,9 @@
   --muted-foreground: var(--color-secondary-500);
   --accent: var(--color-primary-50);
   --accent-foreground: var(--color-primary-900);
-  --destructive: var(--color-error-500);
+  --destructive: #c81e1e;
   --border: var(--color-secondary-200);
-  --input: var(--color-secondary-200);
+  --input: #838c96;
   --ring: var(--color-primary-500);
   --chart-1: var(--color-primary-600);
   --chart-2: var(--color-accent-500);
@@ -178,14 +178,14 @@
   --chart-4: var(--color-warning-500);
   --chart-5: var(--color-info-500);
   --radius: 0.625rem;
-  --sidebar: var(--color-secondary-50);
-  --sidebar-foreground: var(--color-secondary-700);
-  --sidebar-primary: var(--color-primary-600);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--color-primary-50);
-  --sidebar-accent-foreground: var(--color-primary-900);
-  --sidebar-border: var(--color-secondary-200);
-  --sidebar-ring: var(--color-primary-500);
+  --sidebar: #23282e;
+  --sidebar-foreground: #d5d9dd;
+  --sidebar-primary: #f3f4f3;
+  --sidebar-primary-foreground: #1b1f23;
+  --sidebar-accent: #343a41;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #3a4047;
+  --sidebar-ring: #d5d9dd;
 
   /* ===== Status Colors — Student ===== */
   --status-active-bg: var(--color-success-50);
@@ -263,7 +263,7 @@
   --shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.09), 0 4px 8px -4px rgb(0 0 0 / 0.05);
   --shadow-xl: 0 24px 48px -8px rgb(0 0 0 / 0.12), 0 8px 16px -8px rgb(0 0 0 / 0.06);
   /* Elevated card shadow with colored undertone */
-  --shadow-card: 0 2px 8px -1px rgb(99 102 241 / 0.07), 0 1px 3px -1px rgb(0 0 0 / 0.06);
+  --shadow-card: 0 2px 8px -1px rgb(35 40 46 / 0.07), 0 1px 3px -1px rgb(0 0 0 / 0.06);
 
   /* ===== Layout ===== */
   --container-sm: 640px;
@@ -286,7 +286,7 @@
   --btn-primary-bg: var(--color-primary-600);
   --btn-primary-text: #ffffff;
   --btn-primary-hover: var(--color-primary-700);
-  --btn-primary-active: #3730a3;
+  --btn-primary-active: #0f1215;
 
   --btn-secondary-bg: transparent;
   --btn-secondary-text: var(--color-primary-600);
@@ -327,7 +327,7 @@
   --input-bg: var(--color-secondary-50);
   --input-text: var(--color-secondary-900);
   --input-placeholder: var(--color-secondary-300);
-  --input-shadow-focus: 0 0 0 3px rgb(99 102 241 / 0.15);
+  --input-shadow-focus: 0 0 0 3px rgb(35 40 46 / 0.15);
 
   /* ===== Component Tokens — Cards ===== */
   --card-bg: #ffffff;
@@ -562,9 +562,8 @@
 .sidebar-material {
   backdrop-filter: blur(24px) saturate(200%);
   -webkit-backdrop-filter: blur(24px) saturate(200%);
-  background: rgba(248, 250, 252, 0.85);
-  /* Bright top-edge catches the light, subtle right border separates from content */
-  border-right: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(35, 40, 46, 0.94);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .mobile-header-material {
@@ -610,6 +609,9 @@
     -webkit-backdrop-filter: none;
     background: var(--color-secondary-50);
   }
+  .sidebar-material {
+    background: var(--sidebar);
+  }
 }
 
 /* ==========================================================================
@@ -623,6 +625,9 @@
     -webkit-backdrop-filter: none;
     background: var(--color-secondary-50);
     border-right: 2px solid var(--color-secondary-700);
+  }
+  .sidebar-material {
+    background: var(--sidebar);
   }
 }
 

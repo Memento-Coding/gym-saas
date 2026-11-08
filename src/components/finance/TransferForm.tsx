@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { isoDateSchema, nonNegativeAmount } from '@/utils/validation';
+import { copAmount, isFutureDate, isoDateSchema, messages, textSchema } from '@/utils/validation';
 import type { FinanceBox, TransferInput } from '@/services/FinanceService';
 import type { PaymentMethod } from '@/types/payment';
 
@@ -80,18 +80,19 @@ function buildTransferSchema() {
   return z
     .object({
       // Fecha válida ISO (STEERING_FORMS §4).
-      date: isoDateSchema('La fecha'),
+      date: isoDateSchema('La fecha').refine((v) => !isFutureDate(v), {
+        message: messages.futureDate('La fecha'),
+      }),
       // Monto: entero positivo (STEERING_FORMS §1). Los traslados no tienen
-      // monto cero con sentido de negocio; se usa nonNegativeAmount y se
-      // agrega refine > 0 a nivel de formulario.
-      amount: nonNegativeAmount('El monto').refine((n) => n > 0, {
+      // monto cero con sentido de negocio.
+      amount: copAmount('El monto').refine((n) => Number(n) > 0, {
         message: 'El monto debe ser mayor que cero.',
       }),
       fromBox: z.enum(BOX_VALUES),
       toBox: z.enum(BOX_VALUES),
       fromMethod: z.enum(METHOD_VALUES),
       toMethod: z.enum(METHOD_VALUES),
-      concept: z.string().optional().default(''),
+      concept: textSchema('El concepto'),
     })
     .superRefine((data, ctx) => {
       // Las cajas origen y destino no pueden ser la misma.
@@ -177,7 +178,7 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
               <FormControl>
                 {/*
                   type="text" + inputMode="numeric": la validación (positivo,
-                  no negativo, no NaN) la hace nonNegativeAmount del catálogo
+                  no negativo, no NaN) la hace copAmount del catálogo
                   Zod con mensajes claros. Alinea con STEERING_FORMS §1.
                 */}
                 <Input

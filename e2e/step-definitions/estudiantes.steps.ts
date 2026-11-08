@@ -7,17 +7,40 @@ import { expect } from '@playwright/test';
 import { Given, When, Then } from '../support/world';
 import { StudentsPage } from '../pages/StudentsPage';
 import { TEST_STUDENT } from '../fixtures/students';
-import { seedAll } from '../helpers/seed';
+import { lsGet, seedAll } from '../helpers/seed';
+import { diasDesdeHoy } from '../helpers/dates';
 
 // playwright-bdd crea una instancia nueva de los steps por escenario;
 // la variable de módulo es segura en modo serial (workers: 1).
 let studentsPage: StudentsPage;
 
-/** Fecha ISO relativa a hoy. días > 0 → futuro, < 0 → pasado. */
-function daysFromToday(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+type Guardado = {
+  firstName: string;
+  lastName: string;
+  documentId: string;
+  phone: string;
+  subscriptionEndDate: string;
+  freezeEndDate?: string;
+};
+
+const guardados = async () => {
+  await studentsPage.page.waitForTimeout(300);
+  return (await lsGet<Guardado[]>(studentsPage.page, 'students')) ?? [];
+};
+
+const guardadoLlamado = async (nombre: string) => {
+  const estudiante = (await guardados()).find((s) => `${s.firstName} ${s.lastName}` === nombre);
+  if (!estudiante) throw new Error(`No existe el estudiante "${nombre}"`);
+  return estudiante;
+};
+
+/** Vigencia del estudiante sembrado: fija durante el escenario, relativa a hoy. */
+const VENCIMIENTO_SEMBRADO = diasDesdeHoy(60);
+
+/** Estudiante vigente con el nombre que indica el escenario. */
+function estudianteLlamado(nombre: string) {
+  const [firstName, ...resto] = nombre.split(' ');
+  return { ...TEST_STUDENT, firstName, lastName: resto.join(' '), subscriptionEndDate: VENCIMIENTO_SEMBRADO };
 }
 
 /** Estudiante con la suscripción vencida (Pedro Ruiz). */
@@ -29,7 +52,7 @@ const OVERDUE_STUDENT = {
   documentId: '5555000011',
   email: 'pedro.ruiz@test.com',
   planName: 'Estándar',
-  subscriptionEndDate: daysFromToday(-5),
+  subscriptionEndDate: diasDesdeHoy(-5),
   status: 'active',
 };
 
@@ -59,8 +82,8 @@ const STUDENT_WITH_PAYMENT = {
 
 // ── Given ──────────────────────────────────────────────────────────────────────
 
-Given('que existe el estudiante {string} registrado', async ({ page }, _nombre: string) => {
-  await seedAll(page, { students: [TEST_STUDENT] });
+Given('que existe el estudiante {string} registrado', async ({ page }, nombre: string) => {
+  await seedAll(page, { students: [estudianteLlamado(nombre)] });
   studentsPage = new StudentsPage(page);
 });
 
@@ -97,20 +120,62 @@ When('abre el formulario de nuevo estudiante', async ({}) => {
 });
 
 When(
-  'registra al estudiante {string} {string} con documento {string} plan {string} y vencimiento {string}',
-  async ({}, nombres: string, apellidos: string, documento: string, plan: string, vencimiento: string) => {
+  'registra al estudiante {string} {string} con documento {string} plan {string} y vencimiento en {int} días',
+  async ({}, nombres: string, apellidos: string, documento: string, plan: string, dias: number) => {
     await studentsPage.registrarEstudiante({
       nombres,
       apellidos,
       documento,
       plan: new RegExp(plan, 'i'),
-      vencimiento,
+      vencimiento: diasDesdeHoy(dias),
     });
   },
 );
 
 When('busca {string}', async ({}, termino: string) => {
   await studentsPage.buscar(termino);
+});
+
+When(
+  'intenta registrar un estudiante con {string} igual a {string}',
+  async ({}, campo: string, valor: string) => {
+    await studentsPage.abrirFormularioNuevoEstudiante();
+    await studentsPage.registrarConCampo(campo, valor.replaceAll('␠', ' '), diasDesdeHoy(30));
+  },
+);
+
+When('intenta registrar otro estudiante con el documento de {string}', async ({}, _nombre: string) => {
+  await studentsPage.abrirFormularioNuevoEstudiante();
+  await studentsPage.registrarConCampo('Documento', TEST_STUDENT.documentId, diasDesdeHoy(30));
+});
+
+When('accede al perfil del estudiante {string}', async ({ page }, id: string) => {
+  studentsPage = new StudentsPage(page);
+  await studentsPage.gotoPerfil(id);
+});
+
+When('cambia el teléfono de {string} a {string}', async ({}, nombre: string, telefono: string) => {
+  await studentsPage.abrirPerfilDe(nombre);
+  await studentsPage.dialog.getByRole('button', { name: 'Editar' }).click();
+  await studentsPage.llenarCampo(/teléfono/i, telefono);
+  await studentsPage.btnGuardar.click();
+});
+
+When(
+  'intenta congelar a {string} con motivo {string} por {string} días',
+  async ({}, nombre: string, motivo: string, dias: string) => {
+    await studentsPage.abrirPerfilDe(nombre);
+    await studentsPage.dialog.getByRole('button', { name: 'Congelar' }).click();
+    await studentsPage.page.locator('#freeze-reason').fill(motivo);
+    await studentsPage.page.locator('#freeze-days').fill(dias);
+    await studentsPage.page.getByRole('dialog').getByRole('button', { name: /congelar/i }).last().click();
+  },
+);
+
+When('intenta eliminar a {string} y cancela', async ({}, nombre: string) => {
+  await studentsPage.abrirPerfilDe(nombre);
+  await studentsPage.dialog.getByRole('button', { name: 'Eliminar' }).click();
+  await studentsPage.page.getByRole('dialog').getByRole('button', { name: /cancelar/i }).click();
 });
 
 // ── Then ─────────────────────────────────────────────────────────────────────
@@ -133,6 +198,45 @@ Then('debería ver la confirmación de que el estudiante fue registrado', async 
 
 Then('el estado de pago de {string} debería ser {string}', async ({}, _nombre: string, estado: string) => {
   await expect(studentsPage.badgePago('stu-e2e-overdue')).toHaveText(new RegExp(estado, 'i'));
+});
+
+Then('debería existir {int} estudiante guardado con documento {string}', async ({}, n: number, doc: string) => {
+  expect((await guardados()).filter((s) => s.documentId === doc)).toHaveLength(n);
+});
+
+Then('debería existir solo {int} estudiante guardado', async ({}, n: number) => {
+  expect(await guardados()).toHaveLength(n);
+});
+
+Then('no debería existir ningún estudiante guardado', async ({}) => {
+  expect(await guardados()).toHaveLength(0);
+});
+
+Then('el formulario de estudiante debería seguir abierto mostrando un error', async ({}) => {
+  await expect(studentsPage.dialog).toBeVisible();
+  // Vale el mensaje del formulario o la validación nativa del navegador (type=email).
+  await expect(studentsPage.dialog.locator('[data-slot="form-message"], input:invalid').first()).toBeVisible();
+});
+
+Then('no debería haberse ejecutado código inyectado', async ({ page }) => {
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as Window & { __xss?: number }).__xss)).toBeUndefined();
+});
+
+Then('debería ver que el estudiante no fue encontrado', async ({ page }) => {
+  await expect(page.getByText(/no se encontró un estudiante/i)).toBeVisible();
+});
+
+Then('el teléfono guardado debería ser {string}', async ({}, telefono: string) => {
+  expect((await guardados())[0].phone).toBe(telefono);
+});
+
+Then('el vencimiento de {string} debería seguir igual', async ({}, nombre: string) => {
+  expect((await guardadoLlamado(nombre)).subscriptionEndDate).toBe(VENCIMIENTO_SEMBRADO);
+});
+
+Then('{string} no debería quedar congelada', async ({}, nombre: string) => {
+  expect((await guardadoLlamado(nombre)).freezeEndDate).toBeFalsy();
 });
 
 Then('debería ver el historial de pagos del estudiante', async ({}) => {

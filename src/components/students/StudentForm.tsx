@@ -12,22 +12,32 @@
  *  - 3.11 Preservación de customFields históricos al hacer submit.
  */
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-import type { Student } from '@/types/student';
+import type { DocumentTypeCode, Student } from '@/types/student';
 import type { FormFieldConfig } from '@/types/settings';
+import type { CostsConfig, MembershipPlan } from '@/types/membership';
 import type { StorageService } from '@/services/storage/StorageService';
 import {
-  documentSchema,
-  nonNegativeAmount,
-  isoDateSchema,
-  isDocumentUnique,
-  phoneSchema,
+  DOCUMENT_TYPES,
+  ageFromBirthDate,
+  birthDateSchema,
+  copAmount,
+  documentFormatError,
   emailSchema,
+  getDocumentType,
+  isDocumentUnique,
+  isValidIsoDate,
+  isoDateSchema,
+  messages,
+  nonNegativeAmount,
+  personNameSchema,
+  phoneSchema,
+  textSchema,
 } from '@/utils/validation';
 
 import { Button } from '@/components/ui/button';
@@ -55,6 +65,8 @@ const GUARDIAN_FIELDS = ['guardianName', 'guardianDocument'] as const;
 export interface StudentFormProps {
   /** Configuración dinámica de campos extraída del módulo de ajustes. */
   fields: FormFieldConfig[];
+  /** Planes del gimnasio: alimentan el campo Plan. */
+  plans?: CostsConfig;
   /** Datos históricos del estudiante en modo edición. */
   defaultValues?: Partial<Student>;
   /** Callback de envío. Recibe el subconjunto de datos del estudiante. */
@@ -97,6 +109,24 @@ const ROOT_STUDENT_KEYS = new Set<string>([
   'beltRank',
 ]);
 
+/** Campos que contienen nombres de persona. */
+const PERSON_NAME_FIELDS = new Set(['firstName', 'lastName', 'emergencyName']);
+
+const DOCUMENT_TYPE_CODES = DOCUMENT_TYPES.map((t) => t.value) as [
+  DocumentTypeCode,
+  ...DocumentTypeCode[],
+];
+
+/** Un acudiente siempre es adulto: no aplican TI ni RC. */
+const GUARDIAN_DOCUMENT_TYPES = DOCUMENT_TYPES.filter((t) => t.forAdults);
+
+function findPlan(plans: CostsConfig | undefined, matches: (p: MembershipPlan) => boolean) {
+  const group = plans?.memberships.find(matches);
+  if (group) return { plan: group, category: 'mensualidad' as const };
+  const personalized = plans?.personalized.find(matches);
+  return personalized ? { plan: personalized, category: 'personalizada' as const } : null;
+}
+
 /** Valor tipado del formulario: mapa flexible de nombre de campo a valor. */
 type FormValues = Record<string, unknown>;
 
@@ -105,17 +135,15 @@ type FormValues = Record<string, unknown>;
  * Los campos `required` producen mensajes de error cuando están vacíos.
  * El guardián se valida condicionalmente según isMinor mediante superRefine.
  */
-function buildSchema(fields: FormFieldConfig[]): z.ZodTypeAny {
+function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeAny {
   const shape: Record<string, z.ZodTypeAny> = {
     // isMinor siempre presente para la lógica condicional (Req 3.2).
     isMinor: z.boolean().default(false),
-    guardianName: z.string().optional(),
-    // Documento del acudiente: solo números (STEERING_FORMS §1), misma regla
-    // que documentId. La validación condicional de obligatoriedad sigue en
-    // el superRefine; aquí solo definimos el formato cuando haya valor.
-    guardianDocument: z
-      .union([z.literal(''), documentSchema('El documento del acudiente')])
-      .optional(),
+    documentType: z.enum(DOCUMENT_TYPE_CODES).default('CC'),
+    guardianDocumentType: z.enum(DOCUMENT_TYPE_CODES).default('CC'),
+    // El formato del acudiente solo aplica a menores: se valida en el superRefine.
+    guardianName: z.string().trim().optional(),
+    guardianDocument: z.string().trim().toUpperCase().optional(),
   };
 
   for (const field of fields) {
@@ -126,15 +154,32 @@ function buildSchema(fields: FormFieldConfig[]): z.ZodTypeAny {
 
     let validator: z.ZodTypeAny;
 
-    // Documento: solo números (STEERING_FORMS §1). Se detecta por `name`
-    // porque en la config viene declarado como tipo 'text'.
+    // El formato depende del tipo elegido: se valida en el superRefine.
     if (field.name === 'documentId') {
-      validator = documentSchema(field.label);
-      shape[field.name] = validator;
+      shape[field.name] = z
+        .string({ error: messages.required(field.label) })
+        .trim()
+        .toUpperCase()
+        .min(1, { message: messages.required(field.label) });
       continue;
     }
 
-    // Teléfono: solo dígitos 7–15, detectado por tipo 'tel'.
+    if (PERSON_NAME_FIELDS.has(field.name)) {
+      shape[field.name] = personNameSchema(field.label, field.required);
+      continue;
+    }
+
+    if (field.name === 'monthlyFee') {
+      shape[field.name] = copAmount(field.label, field.required);
+      continue;
+    }
+
+    if (field.name === 'dateOfBirth') {
+      shape[field.name] = birthDateSchema(field.label, field.required);
+      continue;
+    }
+
+    // Teléfono colombiano, detectado por tipo 'tel'.
     if (field.type === 'tel') {
       shape[field.name] = phoneSchema(field.label, field.required);
       continue;
@@ -167,17 +212,19 @@ function buildSchema(fields: FormFieldConfig[]): z.ZodTypeAny {
         }
         break;
       }
-      case 'select':
+      case 'select': {
+        // Catálogo vigente + valor histórico, para no bloquear la edición de
+        // un estudiante cuyo plan ya no está en las opciones.
+        const allowed = [...(field.options ?? []), initial[field.name]];
+        validator = (textSchema(field.label, field.required) as z.ZodTypeAny).refine(
+          (v) => !v || !field.options?.length || allowed.includes(v),
+          { message: messages.notInCatalog(field.label) },
+        );
+        break;
+      }
       case 'text':
       default: {
-        validator = z.string();
-        if (field.required) {
-          validator = (validator as z.ZodString).min(1, {
-            message: `${field.label} es obligatorio.`,
-          });
-        } else {
-          validator = validator.optional();
-        }
+        validator = textSchema(field.label, field.required);
         break;
       }
     }
@@ -189,20 +236,65 @@ function buildSchema(fields: FormFieldConfig[]): z.ZodTypeAny {
     .object(shape)
     .passthrough()
     .superRefine((data, ctx) => {
+      const issue = (path: string, message: string) =>
+        ctx.addIssue({ code: 'custom', path: [path], message });
+      const isMinor = data.isMinor === true;
+      const type = getDocumentType(data.documentType as DocumentTypeCode);
+
+      const documentId = data.documentId;
+      if (typeof documentId === 'string' && documentId) {
+        const error = documentFormatError(documentId, type.value);
+        if (error) issue('documentId', error);
+      }
+
+      if (isMinor ? !type.forMinors : !type.forAdults) {
+        issue(
+          'documentType',
+          `${type.label} no corresponde a ${isMinor ? 'un menor' : 'un mayor'} de edad.`,
+        );
+      }
+
+      const birthDate = data.dateOfBirth;
+      if (typeof birthDate === 'string' && isValidIsoDate(birthDate)) {
+        const isAdultByAge = ageFromBirthDate(birthDate) >= 18;
+        if (isAdultByAge === isMinor) {
+          issue(
+            'dateOfBirth',
+            isMinor
+              ? 'Según esta fecha es mayor de edad: desmarca "Es menor de edad".'
+              : 'Según esta fecha es menor de edad: marca "Es menor de edad".',
+          );
+        }
+      }
+
       // Req 3.2: si es menor, el guardián es obligatorio.
-      if (data.isMinor === true) {
-        for (const key of GUARDIAN_FIELDS) {
-          const value = data[key];
-          if (typeof value !== 'string' || value.trim() === '') {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: [key],
-              message:
-                key === 'guardianName'
-                  ? 'El nombre del acudiente es obligatorio para menores.'
-                  : 'El documento del acudiente es obligatorio para menores.',
-            });
-          }
+      if (!isMinor) return;
+      for (const key of GUARDIAN_FIELDS) {
+        const value = data[key];
+        if (typeof value !== 'string' || value.trim() === '') {
+          issue(
+            key,
+            key === 'guardianName'
+              ? 'El nombre del acudiente es obligatorio para menores.'
+              : 'El documento del acudiente es obligatorio para menores.',
+          );
+        }
+      }
+
+      if (data.guardianName) {
+        const name = personNameSchema('El nombre del acudiente').safeParse(data.guardianName);
+        if (!name.success) issue('guardianName', name.error.issues[0].message);
+      }
+
+      if (typeof data.guardianDocument === 'string' && data.guardianDocument) {
+        const error = documentFormatError(
+          data.guardianDocument,
+          data.guardianDocumentType as DocumentTypeCode,
+          'El documento del acudiente',
+        );
+        if (error) issue('guardianDocument', error);
+        else if (data.guardianDocument === documentId) {
+          issue('guardianDocument', 'El acudiente no puede tener el mismo documento del menor.');
         }
       }
     });
@@ -218,6 +310,8 @@ function buildDefaultValues(
 ): FormValues {
   const values: FormValues = {
     isMinor: defaults?.isMinor ?? false,
+    documentType: defaults?.documentType ?? (defaults?.isMinor ? 'TI' : 'CC'),
+    guardianDocumentType: defaults?.guardianDocumentType ?? 'CC',
     guardianName: defaults?.guardianName ?? '',
     guardianDocument: defaults?.guardianDocument ?? '',
   };
@@ -251,6 +345,7 @@ function assembleStudentData(
   values: FormValues,
   fields: FormFieldConfig[],
   defaults?: Partial<Student>,
+  plans?: CostsConfig,
 ): Partial<Student> {
   const result: Record<string, unknown> = {};
 
@@ -272,15 +367,27 @@ function assembleStudentData(
     }
   }
 
+  result.documentType = values.documentType;
+
+  // El nombre elegido se enlaza al plan real; sin mensualidad, aplica su precio.
+  const chosen = findPlan(plans, (p) => p.name === values.planName);
+  if (chosen) {
+    result.planId = chosen.plan.id;
+    result.planCategory = chosen.category;
+    result.monthlyFee ??= chosen.plan.price;
+  }
+
   // isMinor y guardián (Req 3.2).
   result.isMinor = values.isMinor === true;
   if (result.isMinor) {
     result.guardianName = (values.guardianName as string) ?? '';
     result.guardianDocument = (values.guardianDocument as string) ?? '';
+    result.guardianDocumentType = values.guardianDocumentType;
   } else {
     // Al no ser menor, no imponemos datos de guardián.
     result.guardianName = '';
     result.guardianDocument = '';
+    result.guardianDocumentType = undefined;
   }
 
   if (Object.keys(mergedCustom).length > 0) {
@@ -301,18 +408,35 @@ function normalizeValue(raw: unknown, type: FormFieldConfig['type']): unknown {
 }
 
 export function StudentForm({
-  fields,
-  defaultValues,
+  fields: configuredFields,
+  plans,
+  defaultValues: studentValues,
   onSubmit,
   isLoading = false,
   onCancel,
   storage,
 }: StudentFormProps) {
-  const schema = useMemo(() => buildSchema(fields), [fields]);
+  // Si el plan se renombró en Ajustes, el planId da el nombre vigente.
+  const defaultValues = useMemo(() => {
+    const planId = studentValues?.planId;
+    const current = planId ? findPlan(plans, (p) => p.id === planId) : null;
+    return current ? { ...studentValues, planName: current.plan.name } : studentValues;
+  }, [studentValues, plans]);
+
+  const fields = useMemo(() => {
+    if (!plans) return configuredFields;
+    const names = [...plans.memberships, ...plans.personalized].map((p) => p.name);
+    // Un plan ya retirado sigue visible para quien lo tiene asignado.
+    const current = defaultValues?.planName;
+    if (current && !names.includes(current)) names.push(current);
+    return configuredFields.map((f) => (f.name === 'planName' ? { ...f, options: names } : f));
+  }, [configuredFields, plans, defaultValues?.planName]);
+
   const initialValues = useMemo(
     () => buildDefaultValues(fields, defaultValues),
     [fields, defaultValues],
   );
+  const schema = useMemo(() => buildSchema(fields, initialValues), [fields, initialValues]);
 
   // El cast del resolver evita la fricción de inferencia entre Zod v4 y
   // react-hook-form, manteniendo FormValues como tipo del formulario.
@@ -331,6 +455,26 @@ export function StudentForm({
   });
 
   const isMinor = form.watch('isMinor') === true;
+  const documentType = form.watch('documentType') as DocumentTypeCode;
+  const guardianDocumentType = form.watch('guardianDocumentType') as DocumentTypeCode;
+
+  // Al cambiar la mayoría de edad, propone un tipo de documento coherente.
+  const handleMinorChange = (minor: boolean) => {
+    const current = getDocumentType(form.getValues('documentType') as DocumentTypeCode);
+    if (minor ? !current.forMinors : !current.forAdults) {
+      form.setValue('documentType', minor ? 'TI' : 'CC');
+      form.clearErrors(['documentType', 'documentId']);
+    }
+  };
+
+  // Elegir un plan propone su precio como mensualidad (sigue siendo editable).
+  const handleSelect = (name: string, value: string) => {
+    const chosen = name === 'planName' ? findPlan(plans, (p) => p.name === value) : null;
+    if (chosen) {
+      form.setValue('monthlyFee', String(chosen.plan.price));
+      form.clearErrors('monthlyFee');
+    }
+  };
 
   // Estado de la validación asíncrona de unicidad del documento (STEERING_FORMS
   // §5): mientras se consulta el StorageService (simulación backend), se
@@ -350,6 +494,7 @@ export function StudentForm({
           documentId,
           storage,
           defaultValues?.id,
+          values.documentType as DocumentTypeCode,
         );
         if (!unique.success) {
           form.setError('documentId', {
@@ -369,7 +514,7 @@ export function StudentForm({
       }
     }
 
-    const data = assembleStudentData(values, fields, defaultValues);
+    const data = assembleStudentData(values, fields, defaultValues, plans);
     await onSubmit(data);
   });
 
@@ -377,7 +522,8 @@ export function StudentForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit} className="grid gap-5">
+      {/* noValidate: los errores los reporta Zod junto al campo, no la burbuja del navegador. */}
+      <form onSubmit={handleSubmit} noValidate className="grid gap-5">
         <div className="grid gap-4 sm:grid-cols-2">
           {fields
             // El guardián se renderiza en su bloque condicional, no aquí.
@@ -385,7 +531,23 @@ export function StudentForm({
               (f) => !(GUARDIAN_FIELDS as readonly string[]).includes(f.name),
             )
             .map((field) => (
-              <DynamicField key={field.id} field={field} control={form.control} />
+              <Fragment key={field.id}>
+                {field.name === 'documentId' && (
+                  <DocumentTypeField
+                    name="documentType"
+                    label="Tipo de documento"
+                    options={DOCUMENT_TYPES}
+                    control={form.control}
+                    onSelect={() => form.clearErrors(['documentId', 'documentType'])}
+                  />
+                )}
+                <DynamicField
+                  field={field}
+                  control={form.control}
+                  documentType={documentType}
+                  onSelect={handleSelect}
+                />
+              </Fragment>
             ))}
         </div>
 
@@ -398,7 +560,10 @@ export function StudentForm({
               <FormControl>
                 <Checkbox
                   checked={field.value === true}
-                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                  onCheckedChange={(checked) => {
+                    field.onChange(checked === true);
+                    handleMinorChange(checked === true);
+                  }}
                   disabled={isLoading}
                 />
               </FormControl>
@@ -435,6 +600,13 @@ export function StudentForm({
                 </FormItem>
               )}
             />
+            <DocumentTypeField
+              name="guardianDocumentType"
+              label="Tipo doc. acudiente"
+              options={GUARDIAN_DOCUMENT_TYPES}
+              control={form.control}
+              onSelect={() => form.clearErrors('guardianDocument')}
+            />
             <FormField
               control={form.control}
               name="guardianDocument"
@@ -447,7 +619,8 @@ export function StudentForm({
                   <FormControl>
                     <Input
                       type="text"
-                      inputMode="numeric"
+                      inputMode={guardianDocumentType === 'PA' ? 'text' : 'numeric'}
+                      placeholder={getDocumentType(guardianDocumentType).hint}
                       value={(field.value as string) ?? ''}
                       onChange={field.onChange}
                       onBlur={field.onBlur}
@@ -487,16 +660,74 @@ export function StudentForm({
   );
 }
 
+type FormControlHandle = ReturnType<typeof useForm<FormValues>>['control'];
+
+/** Selector de tipo de documento, común al estudiante y al acudiente. */
+function DocumentTypeField({
+  name,
+  label,
+  options,
+  control,
+  onSelect,
+}: {
+  name: string;
+  label: string;
+  options: typeof DOCUMENT_TYPES;
+  control: FormControlHandle;
+  onSelect: () => void;
+}) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            {label}
+            <span className="ml-0.5 text-destructive">*</span>
+          </FormLabel>
+          <Select
+            value={field.value as string}
+            onValueChange={(value) => {
+              field.onChange(value);
+              onSelect();
+            }}
+          >
+            <FormControl>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {options.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.value} — {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
 /**
  * Renderiza un único campo dinámico según su tipo (Req 3.9).
  */
 function DynamicField({
   field,
   control,
+  documentType,
+  onSelect,
 }: {
   field: FormFieldConfig;
-  control: ReturnType<typeof useForm<FormValues>>['control'];
+  control: FormControlHandle;
+  documentType: DocumentTypeCode;
+  onSelect: (name: string, value: string) => void;
 }) {
+  const isDocument = field.name === 'documentId';
   return (
     <FormField
       control={control}
@@ -507,24 +738,29 @@ function DynamicField({
             {field.label}
             {field.required && <span className="ml-0.5 text-destructive">*</span>}
           </FormLabel>
-          <FormControl>
-            {field.type === 'select' ? (
-              <Select
-                value={(rhf.value as string) ?? ''}
-                onValueChange={rhf.onChange}
-              >
+          {field.type === 'select' ? (
+            <Select
+              value={(rhf.value as string) ?? ''}
+              onValueChange={(value) => {
+                rhf.onChange(value);
+                onSelect(field.name, value);
+              }}
+            >
+              <FormControl>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={`Selecciona ${field.label}`} />
                 </SelectTrigger>
-                <SelectContent>
-                  {(field.options ?? []).map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
+              </FormControl>
+              <SelectContent>
+                {(field.options ?? []).map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <FormControl>
               <Input
                 type={
                   // 'date' → type="date" nativo.
@@ -542,10 +778,17 @@ function DynamicField({
                         : 'text'
                 }
                 inputMode={
-                  field.name === 'documentId' || field.type === 'number'
+                  (isDocument && documentType !== 'PA') || field.type === 'number'
                     ? 'numeric'
                     : field.type === 'tel'
                       ? 'tel'
+                      : undefined
+                }
+                placeholder={
+                  isDocument
+                    ? getDocumentType(documentType).hint
+                    : field.type === 'tel'
+                      ? '3001234567'
                       : undefined
                 }
                 autoComplete={
@@ -561,8 +804,8 @@ function DynamicField({
                 name={rhf.name}
                 ref={rhf.ref}
               />
-            )}
-          </FormControl>
+            </FormControl>
+          )}
           <FormMessage />
         </FormItem>
       )}

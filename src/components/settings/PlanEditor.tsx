@@ -2,13 +2,14 @@
  * PlanEditor — Editor de planes de membresía.
  *
  * Muestra planes grupales y personalizados en filas editables.
- * Permite cambiar nombre y precio de cada plan.
+ * Permite crear planes, cambiar nombre y precio, y eliminar los que no estén en uso.
  *
  * Validación: usa el catálogo `src/utils/validation.ts` (STEERING_FORMS §1, §3).
  * Este editor alimenta el catálogo de membresías que consume PaymentForm, por lo
  * que la integridad de los datos aquí es crítica:
- *  - El precio no puede ser negativo ni no numérico (nonNegativeAmount).
- *  - El nombre del plan es obligatorio y debe ser único dentro de su grupo.
+ *  - El precio no puede ser negativo ni no numérico (copAmount).
+ *  - El nombre del plan es obligatorio y único: el formulario de estudiantes
+ *    identifica el plan por su nombre.
  *  - El guardado se bloquea mientras exista cualquier error de validación.
  *
  * Requirements: 4.4, 15.1
@@ -21,15 +22,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Save, DollarSign } from 'lucide-react';
+import { Save, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { countStudentsOnPlan } from '@/services/MembershipService';
 import type { CostsConfig, MembershipPlan } from '@/types/membership';
-import { nonNegativeAmount, messages } from '@/utils/validation';
+import type { Student } from '@/types/student';
+import { copAmount, messages, positiveInteger } from '@/utils/validation';
 
 interface PlanEditorProps {
   costs: CostsConfig | null;
   onSave: (config: CostsConfig) => Promise<void>;
+  /** Sin este dato no se sabe qué planes están en uso y no se permite eliminar. */
+  students?: Pick<Student, 'planId' | 'planName' | 'status'>[];
 }
+
+type PlanGroup = 'memberships' | 'personalized';
+
+const EMPTY_NEW_PLAN = {
+  name: '',
+  price: '',
+  group: 'memberships' as PlanGroup,
+  single: false,
+  classes: '',
+};
 
 /** Errores de validación por plan (indexados por campo). */
 interface PlanErrors {
@@ -46,11 +69,11 @@ function formatCurrency(value: number): string {
 // -----------------------------------------------------------------------------
 
 /** Schema de precio reutilizado en cada fila. */
-const priceSchema = nonNegativeAmount('El precio');
+const priceSchema = copAmount('El precio');
 
 /**
- * Valida un plan individual contra el estándar. `siblings` son los otros planes
- * del mismo grupo, para verificar unicidad de nombre.
+ * Valida un plan individual contra el estándar. `siblings` son todos los planes
+ * del gimnasio, para verificar unicidad de nombre.
  */
 function validatePlan(
   plan: MembershipPlan,
@@ -62,8 +85,10 @@ function validatePlan(
   const name = plan.name.trim();
   if (name === '') {
     errors.name = messages.required('El nombre del plan');
+  } else if (name.length > 100) {
+    errors.name = messages.tooLong('El nombre del plan', 100);
   } else if (
-    // Unicidad de nombre dentro del grupo (case-insensitive), excluyéndose.
+    // Unicidad de nombre (case-insensitive), excluyéndose.
     siblings.some(
       (s) => s.id !== plan.id && s.name.trim().toLowerCase() === name.toLowerCase(),
     )
@@ -92,10 +117,14 @@ function PlanRow({
   plan,
   errors,
   onChange,
+  onDelete,
+  deleteBlocked,
 }: {
   plan: MembershipPlan;
   errors: PlanErrors;
   onChange: (updated: MembershipPlan) => void;
+  onDelete: () => void;
+  deleteBlocked: string | null;
 }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border p-3">
@@ -153,8 +182,22 @@ function PlanRow({
               {plan.classesPerMonth} clases/mes
             </Badge>
           )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={`Eliminar plan ${plan.name}`}
+            title={deleteBlocked ?? undefined}
+            disabled={deleteBlocked !== null}
+            onClick={onDelete}
+          >
+            <Trash2 className="size-3.5 text-destructive" />
+          </Button>
         </div>
       </div>
+      {deleteBlocked && (
+        <p className="text-xs text-muted-foreground">{deleteBlocked}</p>
+      )}
     </div>
   );
 }
@@ -175,7 +218,7 @@ function parsePrice(raw: string): number {
 // Editor
 // -----------------------------------------------------------------------------
 
-export function PlanEditor({ costs, onSave }: PlanEditorProps) {
+export function PlanEditor({ costs, onSave, students }: PlanEditorProps) {
   const [memberships, setMemberships] = useState<MembershipPlan[]>(
     costs?.memberships ?? [],
   );
@@ -183,6 +226,57 @@ export function PlanEditor({ costs, onSave }: PlanEditorProps) {
     costs?.personalized ?? [],
   );
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newPlan, setNewPlan] = useState(EMPTY_NEW_PLAN);
+  const [newPlanError, setNewPlanError] = useState('');
+
+  const allPlans = useMemo(
+    () => [...memberships, ...personalized],
+    [memberships, personalized],
+  );
+
+  const handleAddPlan = () => {
+    const price = copAmount('El precio').safeParse(newPlan.price);
+    const classes = newPlan.classes.trim() && !newPlan.single
+      ? positiveInteger('Las clases por mes', 100).safeParse(newPlan.classes)
+      : null;
+    const plan: MembershipPlan = {
+      id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: newPlan.name.trim(),
+      price: Number(price.data),
+      ...(newPlan.single && { single: true }),
+      ...(classes?.success && { classesPerMonth: Number(classes.data) }),
+    };
+    const errors = validatePlan(plan, allPlans);
+    const problem =
+      errors.name ??
+      (price.success ? null : price.error.issues[0]?.message) ??
+      (classes && !classes.success ? classes.error.issues[0]?.message : null);
+    if (problem) {
+      setNewPlanError(problem);
+      return;
+    }
+
+    const setGroup = newPlan.group === 'memberships' ? setMemberships : setPersonalized;
+    setGroup((plans) => [...plans, plan]);
+    setNewPlan(EMPTY_NEW_PLAN);
+    setNewPlanError('');
+    setShowAddForm(false);
+  };
+
+  /** Motivo por el que un plan no se puede eliminar, o null si se puede. */
+  const deleteBlockedReason = (plan: MembershipPlan): string | null => {
+    if (allPlans.length <= 1) return 'Debe existir al menos un plan.';
+    if (!students) return 'Cargando los estudiantes que usan este plan…';
+    // Con el nombre guardado: renombrar sin guardar no debe esconder a sus estudiantes.
+    const saved = [...(costs?.memberships ?? []), ...(costs?.personalized ?? [])].find(
+      (p) => p.id === plan.id,
+    );
+    const count = countStudentsOnPlan(saved ?? plan, students);
+    return count > 0
+      ? `En uso por ${count} ${count === 1 ? 'estudiante' : 'estudiantes'}: reasígnalos antes de eliminarlo.`
+      : null;
+  };
 
   const handleMembershipChange = (index: number, updated: MembershipPlan) => {
     const next = [...memberships];
@@ -198,12 +292,12 @@ export function PlanEditor({ costs, onSave }: PlanEditorProps) {
 
   // Errores por plan (recalculados en cada render sobre el estado actual).
   const membershipErrors = useMemo(
-    () => memberships.map((p) => validatePlan(p, memberships)),
-    [memberships],
+    () => memberships.map((p) => validatePlan(p, allPlans)),
+    [memberships, allPlans],
   );
   const personalizedErrors = useMemo(
-    () => personalized.map((p) => validatePlan(p, personalized)),
-    [personalized],
+    () => personalized.map((p) => validatePlan(p, allPlans)),
+    [personalized, allPlans],
   );
 
   const isValid = useMemo(
@@ -242,14 +336,13 @@ export function PlanEditor({ costs, onSave }: PlanEditorProps) {
       <CardHeader>
         <CardTitle>Planes de Membresía</CardTitle>
         <CardDescription>
-          Edita los nombres y precios de los planes de tu academia.
+          Crea, edita o elimina los planes de tu academia. Los cambios se aplican al guardar.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {!hasPlans && (
           <p className="text-sm text-muted-foreground py-4 text-center">
-            No hay planes configurados. Los planes se crearán automáticamente al registrar
-            el primer estudiante o importar un backup.
+            No hay planes configurados. Agrega el primero.
           </p>
         )}
 
@@ -263,6 +356,8 @@ export function PlanEditor({ costs, onSave }: PlanEditorProps) {
                 plan={plan}
                 errors={membershipErrors[index] ?? {}}
                 onChange={(updated) => handleMembershipChange(index, updated)}
+                onDelete={() => setMemberships((plans) => plans.filter((p) => p.id !== plan.id))}
+                deleteBlocked={deleteBlockedReason(plan)}
               />
             ))}
           </div>
@@ -278,9 +373,102 @@ export function PlanEditor({ costs, onSave }: PlanEditorProps) {
                 plan={plan}
                 errors={personalizedErrors[index] ?? {}}
                 onChange={(updated) => handlePersonalizedChange(index, updated)}
+                onDelete={() => setPersonalized((plans) => plans.filter((p) => p.id !== plan.id))}
+                deleteBlocked={deleteBlockedReason(plan)}
               />
             ))}
           </div>
+        )}
+
+        {showAddForm ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-dashed p-4">
+            <Label>Nuevo plan</Label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input
+                placeholder="Nombre del plan"
+                aria-label="Nombre del nuevo plan"
+                maxLength={100}
+                value={newPlan.name}
+                onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+              />
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="Precio"
+                aria-label="Precio del nuevo plan"
+                value={newPlan.price}
+                onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
+              />
+              <Select
+                value={newPlan.group}
+                onValueChange={(group) => setNewPlan({ ...newPlan, group: group as PlanGroup })}
+              >
+                <SelectTrigger className="w-full" aria-label="Tipo de plan">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="memberships">Grupal</SelectItem>
+                  <SelectItem value="personalized">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="new-plan-single"
+                  checked={newPlan.single}
+                  onCheckedChange={(checked) =>
+                    setNewPlan({ ...newPlan, single: checked === true, classes: '' })
+                  }
+                />
+                <Label htmlFor="new-plan-single" className="text-sm">
+                  Clase única (no extiende el vencimiento)
+                </Label>
+              </div>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="Clases por mes (opcional)"
+                aria-label="Clases por mes"
+                className="sm:w-56"
+                disabled={newPlan.single}
+                value={newPlan.classes}
+                onChange={(e) => setNewPlan({ ...newPlan, classes: e.target.value })}
+              />
+            </div>
+            {newPlanError && (
+              <p role="alert" className="text-xs font-medium text-destructive">
+                {newPlanError}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleAddPlan}>
+                <Plus className="size-3.5 mr-1" />
+                Agregar
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNewPlan(EMPTY_NEW_PLAN);
+                  setNewPlanError('');
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => setShowAddForm(true)}
+          >
+            <Plus className="size-3.5 mr-1" />
+            Agregar plan
+          </Button>
         )}
 
         {/* Precio formateado como referencia */}

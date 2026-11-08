@@ -94,7 +94,7 @@ export class StudentsPage {
   }
 
   async seleccionarEnCombo(nombreOpcion: string | RegExp) {
-    await this.dialog.getByRole('combobox').first().click();
+    await this.dialog.getByRole('combobox', { name: /^plan/i }).click();
     await this.page.getByRole('option', { name: nombreOpcion }).click();
   }
 
@@ -107,9 +107,24 @@ export class StudentsPage {
   }) {
     await this.llenarCampo(/nombres/i, datos.nombres);
     await this.llenarCampo(/apellidos/i, datos.apellidos);
-    await this.llenarCampo(/documento/i, datos.documento);
+    await this.llenarCampo(/^documento/i, datos.documento);
     await this.seleccionarEnCombo(datos.plan);
     await this.llenarCampo(/vencimiento/i, datos.vencimiento);
+    await this.btnGuardar.click();
+  }
+
+  /** Rellena un alta válida y sustituye un campo por el valor del ataque. */
+  async registrarConCampo(campo: string, valor: string, vencimiento: string) {
+    const validos: Record<string, string> = {
+      Nombres: 'Carlos',
+      Apellidos: 'López',
+      Documento: '50607080',
+      Vencimiento: vencimiento,
+    };
+    await this.seleccionarEnCombo(/básico/i);
+    for (const [etiqueta, dato] of Object.entries({ ...validos, [campo]: valor })) {
+      await this.llenarCampo(new RegExp(`^${etiqueta}`, 'i'), dato);
+    }
     await this.btnGuardar.click();
   }
 

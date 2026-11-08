@@ -49,15 +49,30 @@ Característica: Gestión de consentimientos
     Y hace clic en el botón de editar
     Entonces debería ver el campo de texto para editar el consentimiento
 
-  @regresion
-  Escenario: Administrador inicia el proceso de firma de un estudiante
+  @critico
+  Escenario: Firmar el consentimiento lo deja registrado
     Dado que el estudiante "Ana García" no ha firmado el consentimiento
     Cuando el administrador accede al módulo de consentimiento
-    Y abre el diálogo de firma para "Ana García"
-    Entonces debería ver el canvas para capturar la firma
+    Y firma el consentimiento de "Ana García"
+    Entonces el consentimiento de "Ana García" debería quedar firmado en la versión vigente
 
   @regresion
   Escenario: Estudiante con firma previa tiene disponible la descarga del PDF
     Dado que el estudiante "Ana García" firmó en una versión anterior del consentimiento
     Cuando el administrador accede al módulo de consentimiento
     Entonces debería ver el botón de descarga del PDF firmado
+
+  @adversarial
+  Escenario: Una firma en blanco no se puede confirmar
+    Dado que el estudiante "Ana García" no ha firmado el consentimiento
+    Cuando el administrador accede al módulo de consentimiento
+    Y abre el diálogo de firma para "Ana García"
+    Entonces no debería poder confirmar la firma
+    Y el consentimiento de "Ana García" no debería quedar firmado
+
+  @adversarial
+  Escenario: Un texto de consentimiento vacío no crea una versión nueva
+    Dado que el estudiante "Ana García" ha firmado el consentimiento en la versión vigente
+    Cuando el administrador accede al módulo de consentimiento
+    Y intenta guardar una versión con el texto vacío
+    Entonces "Ana García" debería seguir sin pendientes de firma

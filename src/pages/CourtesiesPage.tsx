@@ -11,10 +11,12 @@
  */
 
 import { useState } from 'react';
+import { z } from 'zod';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useCourtesies } from '@/hooks/useCourtesies';
 import { useStudents } from '@/hooks/useStudents';
+import { isoDateSchema, positiveInteger, textSchema } from '@/utils/validation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +46,12 @@ import {
   User,
 } from 'lucide-react';
 
+const bonusSchema = z.object({
+  startDate: isoDateSchema('La fecha de inicio'),
+  weeks: positiveInteger('La duración', 52),
+  reason: textSchema('La razón', true),
+});
+
 export function CourtesiesPage() {
   const { bonusGroups, loading, error, addBonus, removeBonus } = useCourtesies();
   const { students } = useStudents();
@@ -53,6 +61,7 @@ export function CourtesiesPage() {
   const [formStartDate, setFormStartDate] = useState('');
   const [formWeeks, setFormWeeks] = useState('');
   const [formReason, setFormReason] = useState('');
+  const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
@@ -72,19 +81,31 @@ export function CourtesiesPage() {
     setFormStartDate('');
     setFormWeeks('');
     setFormReason('');
+    setFormError('');
     setDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formStudentId || !formStartDate || !formWeeks || !formReason) return;
+    if (!formStudentId) return;
+
+    const parsed = bonusSchema.safeParse({
+      startDate: formStartDate,
+      weeks: formWeeks,
+      reason: formReason,
+    });
+    if (!parsed.success) {
+      setFormError(parsed.error.issues[0]?.message ?? 'Revisa los datos del bono.');
+      return;
+    }
+    setFormError('');
 
     setSubmitting(true);
     try {
       await addBonus(formStudentId, {
-        startDate: formStartDate,
-        weeks: parseInt(formWeeks, 10),
-        reason: formReason,
+        startDate: parsed.data.startDate,
+        weeks: Number(parsed.data.weeks),
+        reason: parsed.data.reason ?? '',
       });
       setDialogOpen(false);
     } catch {
@@ -151,8 +172,8 @@ export function CourtesiesPage() {
 
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-green-500/10">
-              <Calendar className="size-5 text-green-500" />
+            <div className="flex size-10 items-center justify-center rounded-lg bg-success-50">
+              <Calendar className="size-5 text-success-700" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Activos</p>
@@ -163,8 +184,8 @@ export function CourtesiesPage() {
 
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-orange-500/10">
-              <User className="size-5 text-orange-500" />
+            <div className="flex size-10 items-center justify-center rounded-lg bg-accent-50">
+              <User className="size-5 text-accent-600" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Estudiantes con bono</p>
@@ -284,8 +305,8 @@ export function CourtesiesPage() {
               <Label htmlFor="bonus-weeks">Duración (semanas)</Label>
               <Input
                 id="bonus-weeks"
-                type="number"
-                min={1}
+                type="text"
+                inputMode="numeric"
                 value={formWeeks}
                 onChange={(e) => setFormWeeks(e.target.value)}
                 placeholder="Ej: 2"
@@ -304,6 +325,12 @@ export function CourtesiesPage() {
                 required
               />
             </div>
+
+            {formError && (
+              <p role="alert" className="text-sm text-destructive">
+                {formError}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button
