@@ -7,6 +7,11 @@ export interface BrandingConfig {
   logo: string | null;
   wordmark: string | null;
   tagline: string | null;
+  /** Datos del gimnasio que se imprimen en los comprobantes. */
+  taxId?: string;
+  address?: string;
+  phone?: string;
+  receiptNote?: string;
 }
 
 export interface FormFieldConfig {

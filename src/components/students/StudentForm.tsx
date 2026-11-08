@@ -26,18 +26,22 @@ import {
   DOCUMENT_TYPES,
   ageFromBirthDate,
   birthDateSchema,
+  cleanDocumentInput,
   copAmount,
   documentFormatError,
   emailSchema,
+  endDateFromPayment,
   getDocumentType,
   isDocumentUnique,
   isValidIsoDate,
   isoDateSchema,
   messages,
   nonNegativeAmount,
+  pastDateSchema,
   personNameSchema,
   phoneSchema,
   textSchema,
+  todayLocalIso,
 } from '@/utils/validation';
 
 import { Button } from '@/components/ui/button';
@@ -46,6 +50,7 @@ import { Input } from '@/components/ui/input';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -109,6 +114,9 @@ const ROOT_STUDENT_KEYS = new Set<string>([
   'beltRank',
 ]);
 
+/** Este campo no se digita: sale de la fecha de pago. */
+const EXPIRY_FIELD = 'subscriptionEndDate';
+
 /** Campos que contienen nombres de persona. */
 const PERSON_NAME_FIELDS = new Set(['firstName', 'lastName', 'emergencyName']);
 
@@ -125,6 +133,18 @@ function findPlan(plans: CostsConfig | undefined, matches: (p: MembershipPlan) =
   if (group) return { plan: group, category: 'mensualidad' as const };
   const personalized = plans?.personalized.find(matches);
   return personalized ? { plan: personalized, category: 'personalizada' as const } : null;
+}
+
+/** Quita al escribir lo que el campo nunca admite; el resto lo reporta el schema. */
+function sanitizeInput(
+  field: FormFieldConfig,
+  documentType: DocumentTypeCode,
+  value: string,
+): string {
+  if (field.name === 'documentId') return cleanDocumentInput(value, documentType);
+  if (field.type === 'tel') return value.replace(/[^\d+()\s-]/g, '');
+  if (field.type === 'number') return value.replace(/[^\d.-]/g, '');
+  return value;
 }
 
 /** Valor tipado del formulario: mapa flexible de nombre de campo a valor. */
@@ -145,6 +165,11 @@ function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeA
     guardianName: z.string().trim().optional(),
     guardianDocument: z.string().trim().toUpperCase().optional(),
   };
+
+  // Al editar puede no haber pagos previos: la fecha solo se exige al crear.
+  if (fields.some((f) => f.name === EXPIRY_FIELD)) {
+    shape.paymentDate = pastDateSchema('La fecha de pago', !initial.id);
+  }
 
   for (const field of fields) {
     // El guardián se maneja aparte con validación condicional.
@@ -318,6 +343,10 @@ function buildDefaultValues(
 
   const custom = defaults?.customFields ?? {};
 
+  const lastPayment = defaults?.payments?.map((p) => p.date.slice(0, 10)).sort().at(-1) ?? '';
+  values.id = defaults?.id;
+  values.paymentDate = defaults?.id ? lastPayment : todayLocalIso();
+
   for (const field of fields) {
     if ((GUARDIAN_FIELDS as readonly string[]).includes(field.name)) {
       continue;
@@ -329,6 +358,10 @@ function buildDefaultValues(
     } else {
       values[field.name] = custom[field.name] ?? '';
     }
+  }
+
+  if (!values[EXPIRY_FIELD] && !defaults?.id && fields.some((f) => f.name === EXPIRY_FIELD)) {
+    values[EXPIRY_FIELD] = endDateFromPayment(values.paymentDate as string);
   }
 
   return values;
@@ -451,7 +484,8 @@ export function StudentForm({
   const form = useForm<FormValues>({
     resolver,
     defaultValues: initialValues,
-    mode: 'onSubmit',
+    // Cada campo avisa al salir de él, sin esperar a Guardar.
+    mode: 'onTouched',
   });
 
   const isMinor = form.watch('isMinor') === true;
@@ -467,13 +501,32 @@ export function StudentForm({
     }
   };
 
+  const updateExpiry = (paymentDate: string, planName: unknown) => {
+    if (!isValidIsoDate(paymentDate)) return;
+    const plan = findPlan(plans, (p) => p.name === planName)?.plan;
+    form.setValue(EXPIRY_FIELD, endDateFromPayment(paymentDate, plan));
+    form.clearErrors(EXPIRY_FIELD);
+  };
+
   // Elegir un plan propone su precio como mensualidad (sigue siendo editable).
   const handleSelect = (name: string, value: string) => {
     const chosen = name === 'planName' ? findPlan(plans, (p) => p.name === value) : null;
     if (chosen) {
       form.setValue('monthlyFee', String(chosen.plan.price));
       form.clearErrors('monthlyFee');
+      // Al editar, cambiar de plan no debe mover un vencimiento ya pactado.
+      const paymentDate = form.getValues('paymentDate') as string;
+      if (!defaultValues?.id || paymentDate !== initialValues.paymentDate) {
+        updateExpiry(paymentDate, value);
+      }
     }
+  };
+
+  /** Al cambiar el tipo, el número deja de tener lo que el tipo nuevo no admite. */
+  const handleDocumentTypeChange = (target: string, type: string) => {
+    const current = String(form.getValues(target) ?? '');
+    form.setValue(target, cleanDocumentInput(current, type as DocumentTypeCode));
+    form.clearErrors([target, 'documentType']);
   };
 
   // Estado de la validación asíncrona de unicidad del documento (STEERING_FORMS
@@ -538,7 +591,32 @@ export function StudentForm({
                     label="Tipo de documento"
                     options={DOCUMENT_TYPES}
                     control={form.control}
-                    onSelect={() => form.clearErrors(['documentId', 'documentType'])}
+                    onSelect={(type) => handleDocumentTypeChange('documentId', type)}
+                  />
+                )}
+                {field.name === EXPIRY_FIELD && (
+                  <FormField
+                    control={form.control}
+                    name="paymentDate"
+                    render={({ field: payment }) => (
+                      <FormItem>
+                        <FormLabel>Fecha de pago</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="date"
+                            value={(payment.value as string) ?? ''}
+                            onChange={(e) => {
+                              payment.onChange(e);
+                              updateExpiry(e.target.value, form.getValues('planName'));
+                            }}
+                            onBlur={payment.onBlur}
+                            name={payment.name}
+                            ref={payment.ref}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 )}
                 <DynamicField
@@ -605,7 +683,7 @@ export function StudentForm({
               label="Tipo doc. acudiente"
               options={GUARDIAN_DOCUMENT_TYPES}
               control={form.control}
-              onSelect={() => form.clearErrors('guardianDocument')}
+              onSelect={(type) => handleDocumentTypeChange('guardianDocument', type)}
             />
             <FormField
               control={form.control}
@@ -622,7 +700,9 @@ export function StudentForm({
                       inputMode={guardianDocumentType === 'PA' ? 'text' : 'numeric'}
                       placeholder={getDocumentType(guardianDocumentType).hint}
                       value={(field.value as string) ?? ''}
-                      onChange={field.onChange}
+                      onChange={(e) =>
+                        field.onChange(cleanDocumentInput(e.target.value, guardianDocumentType))
+                      }
                       onBlur={field.onBlur}
                       name={field.name}
                       ref={field.ref}
@@ -674,7 +754,7 @@ function DocumentTypeField({
   label: string;
   options: typeof DOCUMENT_TYPES;
   control: FormControlHandle;
-  onSelect: () => void;
+  onSelect: (type: string) => void;
 }) {
   return (
     <FormField
@@ -690,7 +770,7 @@ function DocumentTypeField({
             value={field.value as string}
             onValueChange={(value) => {
               field.onChange(value);
-              onSelect();
+              onSelect(value);
             }}
           >
             <FormControl>
@@ -728,6 +808,7 @@ function DynamicField({
   onSelect: (name: string, value: string) => void;
 }) {
   const isDocument = field.name === 'documentId';
+  const isExpiry = field.name === EXPIRY_FIELD;
   return (
     <FormField
       control={control}
@@ -799,13 +880,17 @@ function DynamicField({
                       : undefined
                 }
                 value={(rhf.value as string | number | undefined) ?? ''}
-                onChange={rhf.onChange}
+                onChange={(e) => rhf.onChange(sanitizeInput(field, documentType, e.target.value))}
                 onBlur={rhf.onBlur}
                 name={rhf.name}
                 ref={rhf.ref}
+                readOnly={isExpiry}
+                tabIndex={isExpiry ? -1 : undefined}
+                className={isExpiry ? 'bg-muted text-muted-foreground' : undefined}
               />
             </FormControl>
           )}
+          {isExpiry && <FormDescription>Se calcula con la fecha de pago.</FormDescription>}
           <FormMessage />
         </FormItem>
       )}

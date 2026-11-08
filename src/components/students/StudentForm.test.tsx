@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { StudentForm } from './StudentForm';
@@ -71,19 +71,73 @@ function renderForm(
 // =============================================================================
 
 describe('StudentForm — documento (solo números)', () => {
-  it('rechaza un documento con letras y no invoca onSubmit', async () => {
+  it('no deja escribir letras en un documento numérico', async () => {
     const user = userEvent.setup();
-    const { onSubmit } = renderForm();
+    renderForm();
+    const doc = screen.getByLabelText(/^documento/i);
+    await user.type(doc, '12AB-34');
+    expect(doc).toHaveValue('1234');
+  });
+});
 
-    await user.type(screen.getByLabelText(/nombres/i), 'Ana');
-    await user.type(screen.getByLabelText(/^documento/i), '12AB34');
+describe('StudentForm — aviso al salir del campo', () => {
+  it('un email inválido muestra el error sin pulsar Guardar', async () => {
+    const user = userEvent.setup();
+    const fields: FormFieldConfig[] = [
+      ...FIELDS,
+      { id: 'email', name: 'email', label: 'Email', type: 'email', required: false, isBuiltIn: true },
+    ];
+    render(<StudentForm fields={fields} onSubmit={vi.fn()} storage={storage} />);
+    await user.type(screen.getByLabelText(/^email/i), 'hola');
+    await user.tab();
+    expect(await screen.findByText(/no es una dirección válida/i)).toBeInTheDocument();
+  });
+});
 
+describe('StudentForm — vencimiento calculado', () => {
+  const EXPIRY_FIELDS: FormFieldConfig[] = [
+    ...FIELDS.slice(0, 2),
+    { id: 'planName', name: 'planName', label: 'Plan', type: 'select', required: true, isBuiltIn: true },
+    { id: 'subscriptionEndDate', name: 'subscriptionEndDate', label: 'Vencimiento', type: 'date', required: true, isBuiltIn: true },
+  ];
+  const plans = {
+    memberships: [
+      { id: 'm', name: 'Mensual', price: 100000 },
+      { id: 's', name: 'Suelta', price: 20000, single: true },
+    ],
+    personalized: [],
+  };
+  const renderExpiry = (defaultValues?: Partial<Student>) =>
+    render(<StudentForm fields={EXPIRY_FIELDS} plans={plans} defaultValues={defaultValues} onSubmit={vi.fn().mockResolvedValue(undefined)} storage={storage} />);
+
+  it('el vencimiento no se digita y sigue a la fecha de pago, con límite de fin de mes', () => {
+    renderExpiry();
+    const expiry = screen.getByLabelText(/^vencimiento/i);
+    expect(expiry).toHaveAttribute('readonly');
+    fireEvent.change(screen.getByLabelText(/fecha de pago/i), { target: { value: '2026-01-31' } });
+    expect(expiry).toHaveValue('2026-02-28');
+  });
+
+  it('una clase única vence el mismo día del pago', () => {
+    renderExpiry({ planName: 'Suelta' });
+    fireEvent.change(screen.getByLabelText(/fecha de pago/i), { target: { value: '2026-03-10' } });
+    expect(screen.getByLabelText(/^vencimiento/i)).toHaveValue('2026-03-10');
+  });
+
+  it('rechaza una fecha de pago futura', async () => {
+    const user = userEvent.setup();
+    renderExpiry();
+    fireEvent.change(screen.getByLabelText(/fecha de pago/i), { target: { value: `${new Date().getFullYear() + 1}-01-01` } });
     await user.click(screen.getByRole('button', { name: /guardar/i }));
+    expect(await screen.findByText(/no puede ser una fecha futura/i)).toBeInTheDocument();
+  });
 
-    expect(
-      await screen.findByText(/solo puede contener números/i),
-    ).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+  it('al editar conserva el vencimiento hasta que cambie la fecha de pago', () => {
+    renderExpiry({ id: 'x', firstName: 'Ana', documentId: '1001', subscriptionEndDate: '2026-07-15' });
+    const expiry = screen.getByLabelText(/^vencimiento/i);
+    expect(expiry).toHaveValue('2026-07-15');
+    fireEvent.change(screen.getByLabelText(/fecha de pago/i), { target: { value: '2026-08-01' } });
+    expect(expiry).toHaveValue('2026-09-01');
   });
 });
 

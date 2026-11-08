@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { ImagePlus, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BrandingConfig } from '@/types/settings';
+import { nitSchema, phoneSchema } from '@/utils/validation';
 
 interface BrandingFormProps {
   branding: BrandingConfig | null;
@@ -27,6 +28,12 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
   const [logo, setLogo] = useState<string | null>(branding?.logo ?? null);
   const [wordmark, setWordmark] = useState(branding?.wordmark ?? '');
   const [tagline, setTagline] = useState(branding?.tagline ?? '');
+  const [taxId, setTaxId] = useState(branding?.taxId ?? '');
+  const [address, setAddress] = useState(branding?.address ?? '');
+  const [phone, setPhone] = useState(branding?.phone ?? '');
+  const [receiptNote, setReceiptNote] = useState(branding?.receiptNote ?? '');
+  const [taxIdError, setTaxIdError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,8 +46,9 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('La imagen no debe superar los 2 MB.');
+    // La API limita el cuerpo a 350 KB y el logo viaja en base64 con todos los ajustes.
+    if (file.size > 200 * 1024) {
+      toast.error('El logo no puede superar 200 KB. Usa una imagen más liviana.');
       return;
     }
 
@@ -59,12 +67,22 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
   };
 
   const handleSave = async () => {
+    const parsedTaxId = nitSchema().safeParse(taxId);
+    const parsedPhone = phoneSchema('El teléfono').safeParse(phone);
+    setTaxIdError(parsedTaxId.success ? '' : parsedTaxId.error.issues[0].message);
+    setPhoneError(parsedPhone.success ? '' : parsedPhone.error.issues[0].message);
+    if (!parsedTaxId.success || !parsedPhone.success) return;
+
     setSaving(true);
     try {
       await onSave({
         logo,
         wordmark: wordmark.trim() || null,
         tagline: tagline.trim() || null,
+        taxId: parsedTaxId.data || undefined,
+        address: address.trim() || undefined,
+        phone: parsedPhone.data || undefined,
+        receiptNote: receiptNote.trim() || undefined,
       });
       toast.success('Configuración de marca guardada.');
     } catch {
@@ -129,7 +147,7 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
             onChange={handleLogoUpload}
           />
           <p className="text-xs text-muted-foreground">
-            Formatos: PNG, JPG, SVG. Máximo 2 MB.
+            Formatos: PNG, JPG, SVG. Máximo 200 KB.
           </p>
         </div>
 
@@ -155,6 +173,64 @@ export function BrandingForm({ branding, onSave }: BrandingFormProps) {
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
           />
+        </div>
+
+        {/* Datos del comprobante */}
+        <div className="flex flex-col gap-4 border-t pt-6">
+          <div>
+            <h3 className="text-base font-semibold">Datos del comprobante</h3>
+            <p className="text-sm text-muted-foreground">
+              Se imprimen en cada comprobante de pago, junto con el nombre y el logo.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="receipt-tax-id">NIT</Label>
+              <Input
+                id="receipt-tax-id"
+                placeholder="900123456-7"
+                inputMode="numeric"
+                maxLength={20}
+                aria-invalid={Boolean(taxIdError)}
+                value={taxId}
+                onChange={(e) => setTaxId(e.target.value.replace(/[^\d.\s-]/g, ''))}
+              />
+              {taxIdError && <p className="text-xs font-medium text-destructive">{taxIdError}</p>}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="receipt-phone">Teléfono</Label>
+              <Input
+                id="receipt-phone"
+                type="tel"
+                placeholder="3001234567"
+                maxLength={20}
+                aria-invalid={Boolean(phoneError)}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d+()\s-]/g, ''))}
+              />
+              {phoneError && <p className="text-xs font-medium text-destructive">{phoneError}</p>}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="receipt-address">Dirección</Label>
+            <Input
+              id="receipt-address"
+              placeholder="Calle 10 # 20-30, Medellín"
+              maxLength={100}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="receipt-note">Mensaje al pie</Label>
+            <Input
+              id="receipt-note"
+              placeholder="Gracias por entrenar con nosotros"
+              maxLength={120}
+              value={receiptNote}
+              onChange={(e) => setReceiptNote(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Save Button */}

@@ -104,6 +104,7 @@ export function paymentToApi(
 
   const body: Record<string, unknown> = {
     studentId,
+    date: payment.date,
     concept: 'membership',
     plan: payment.planName,
     grossAmount: payment.amount,

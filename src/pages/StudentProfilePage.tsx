@@ -96,7 +96,6 @@ export function StudentProfilePage() {
   const handlePayment = async (input: PaymentInput) => {
     setSaving(true);
     const result = await registerPayment(input, {
-      client,
       currentSubscriptionEndDate: student.subscriptionEndDate,
       plan: [...groupPlans, ...personalizedPlans].find((p) => p.name === input.planName),
     });
@@ -105,7 +104,13 @@ export function StudentProfilePage() {
       toast.error(result.error);
       return;
     }
-    toast.success(`Pago registrado. Recibo ${result.data.receiptNo}.`);
+    toast.success(`Pago registrado. Comprobante ${result.data.receiptNo}.`, {
+      duration: 15000,
+      action: {
+        label: 'Descargar comprobante',
+        onClick: () => downloadReceipt(result.data.payment, client),
+      },
+    });
     setPaymentOpen(false);
     setReloadKey((k) => k + 1);
   };
@@ -131,11 +136,16 @@ export function StudentProfilePage() {
           <DialogHeader className="border-b px-6 py-4">
             <DialogTitle>Registrar pago</DialogTitle>
             <DialogDescription>
-              Al confirmar se descarga el comprobante en PDF.
+              Al confirmar podrás descargar el comprobante. También queda en Finanzas, pestaña Comprobantes.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            <PaymentForm studentId={student.id} onSubmit={handlePayment} submitting={saving} />
+            <PaymentForm
+              studentId={student.id}
+              currentEndDate={student.subscriptionEndDate}
+              onSubmit={handlePayment}
+              submitting={saving}
+            />
           </div>
         </DialogContent>
       </Dialog>

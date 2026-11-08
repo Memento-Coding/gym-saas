@@ -11,6 +11,8 @@
  */
 
 import { getStorageService, type StorageService } from '@/services/storage/StorageService';
+import type { Student } from '@/types/student';
+import { FinanceService } from '@/services/FinanceService';
 import type { Payment, PaymentMethod, PaymentSplit } from '@/types/payment';
 import type { MembershipPlan } from '@/types/membership';
 import type { AppMeta } from '@/types/settings';
@@ -33,6 +35,7 @@ export interface PaymentCreditPlan {
 /** Clave de storage para el metadato de secuencia de comprobantes. */
 const META_KEY = 'meta';
 /** Clave de storage para el historial de pagos. */
+const STUDENTS_KEY = 'students';
 const PAYMENTS_KEY = 'payments';
 /** Cantidad mínima de dígitos del número de comprobante GOP-XXXX. */
 const RECEIPT_PAD = 4;
@@ -268,6 +271,38 @@ export class PaymentService {
     const payments = (await storage.get<Payment[]>(PAYMENTS_KEY)) ?? [];
     payments.push(payment);
     await storage.set<Payment[]>(PAYMENTS_KEY, payments);
+
+    // El historial y el vencimiento que muestra el perfil viven en el estudiante.
+    const students = (await storage.get<Student[]>(STUDENTS_KEY)) ?? [];
+    if (students.some((s) => s.id === input.studentId)) {
+      await storage.set<Student[]>(
+        STUDENTS_KEY,
+        students.map((s) =>
+          s.id === input.studentId
+            ? {
+                ...s,
+                payments: [...(s.payments ?? []), payment],
+                subscriptionEndDate: newSubscriptionEndDate ?? s.subscriptionEndDate,
+              }
+            : s,
+        ),
+      );
+    }
+
+    // En un crédito solo entra a caja el abono inicial, igual que en la API.
+    const income = input.status === 'credit' ? (input.initialPayment ?? 0) : input.amount - discount;
+    if (income > 0) {
+      await new FinanceService(storage).create({
+        type: 'income',
+        date: input.date,
+        concept: `Membresía ${input.planName}`,
+        category: 'Mensualidades',
+        amount: income,
+        box: 'servicios',
+        method: input.method,
+        studentId: input.studentId,
+      });
+    }
 
     return {
       success: true,

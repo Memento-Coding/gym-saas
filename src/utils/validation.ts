@@ -20,7 +20,7 @@
  *  - DB     → índice único / condition expression (futuro DynamoDB).
  */
 
-import { differenceInYears } from 'date-fns';
+import { differenceInYears, format } from 'date-fns';
 import { z } from 'zod';
 
 import type { StorageService } from '@/services/storage/StorageService';
@@ -117,6 +117,11 @@ export function documentFormatError(
     : `${label} no es válido para ${code}: debe tener ${hint}.`;
 }
 
+/** Deja solo los caracteres que admite el tipo de documento mientras se escribe. */
+export function cleanDocumentInput(value: string, type: DocumentTypeCode = 'CC'): string {
+  return type === 'PA' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : value.replace(/\D/g, '');
+}
+
 /** Presenta el documento con su tipo ("CC 1020304050"). */
 export function formatDocument(documentId: string, type?: DocumentTypeCode): string {
   return type && documentId ? `${type} ${documentId}` : documentId;
@@ -187,6 +192,15 @@ export function phoneSchema(label = 'El teléfono', required = false) {
   const base = z.string().overwrite(normalizePhone).regex(PHONE_RE, {
     message: `${label} debe ser un celular de 10 dígitos que inicie en 3 o un fijo que inicie en 60.`,
   });
+  return presence(base, label, required);
+}
+
+/** NIT colombiano: acepta puntos y espacios al digitar; dígito de verificación opcional. */
+export function nitSchema(label = 'El NIT', required = false) {
+  const base = z
+    .string()
+    .overwrite((v) => v.replace(/[.\s]/g, ''))
+    .regex(/^\d{6,10}(-\d)?$/, { message: `${label} debe tener el formato 900123456-7.` });
   return presence(base, label, required);
 }
 
@@ -399,6 +413,29 @@ export function isoDateSchema(label = 'La fecha') {
     .refine((v) => isValidIsoDate(v) && v >= '1900' && v < '2101', {
       message: messages.invalidDate(label),
     });
+}
+
+/** Hoy en la zona horaria del usuario (la UTC ya es mañana desde las 7 p. m. en Colombia). */
+export function todayLocalIso(): string {
+  return format(new Date(), 'yyyy-MM-dd');
+}
+
+/** Fecha válida que no puede ser futura. */
+export function pastDateSchema(label = 'La fecha', required = true) {
+  const base = isoDateSchema(label).refine((v) => !isFutureDate(v), {
+    message: messages.futureDate(label),
+  });
+  return presence(base, label, required);
+}
+
+/** Vencimiento de una inscripción: un mes tras el pago; la clase única vence el mismo día. */
+export function endDateFromPayment(
+  paymentDate: string,
+  plan?: Pick<MembershipPlan, 'single'> | null,
+): string {
+  return plan?.single
+    ? paymentDate.slice(0, 10)
+    : toIsoDateUTC(addOneMonthUTC(parseIsoDateUTC(paymentDate)));
 }
 
 /** Fecha de nacimiento: no futura y con una edad humanamente posible. */

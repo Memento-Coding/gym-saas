@@ -89,6 +89,10 @@ export class StudentsPage {
     await this.inputBusqueda.fill(termino);
   }
 
+  campo(label: RegExp) {
+    return this.dialog.getByLabel(label);
+  }
+
   async llenarCampo(label: string | RegExp, valor: string) {
     await this.dialog.getByLabel(label).fill(valor);
   }
@@ -103,23 +107,20 @@ export class StudentsPage {
     apellidos: string;
     documento: string;
     plan: string | RegExp;
-    vencimiento: string;
   }) {
     await this.llenarCampo(/nombres/i, datos.nombres);
     await this.llenarCampo(/apellidos/i, datos.apellidos);
     await this.llenarCampo(/^documento/i, datos.documento);
     await this.seleccionarEnCombo(datos.plan);
-    await this.llenarCampo(/vencimiento/i, datos.vencimiento);
     await this.btnGuardar.click();
   }
 
   /** Rellena un alta válida y sustituye un campo por el valor del ataque. */
-  async registrarConCampo(campo: string, valor: string, vencimiento: string) {
+  async registrarConCampo(campo: string, valor: string) {
     const validos: Record<string, string> = {
       Nombres: 'Carlos',
       Apellidos: 'López',
       Documento: '50607080',
-      Vencimiento: vencimiento,
     };
     await this.seleccionarEnCombo(/básico/i);
     for (const [etiqueta, dato] of Object.entries({ ...validos, [campo]: valor })) {
