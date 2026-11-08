@@ -26,9 +26,12 @@ import {
   resetPassword as amplifyResetPassword,
   confirmResetPassword as amplifyConfirmResetPassword,
   signInWithRedirect,
+  resendSignUpCode as amplifyResendSignUpCode,
+  updateUserAttributes,
 } from 'aws-amplify/auth';
 
 import type { AuthConfig } from '@/types/settings';
+import { termsAcceptanceValue } from '@/config/legal';
 
 // ─── Tipos de resultado ────────────────────────────────────────────────────────
 
@@ -36,6 +39,9 @@ export interface AuthUser {
   userId: string;
   username: string;
   email?: string;
+  name?: string;
+  /** `<versión>|<fecha>` de los términos aceptados, si ya constan. */
+  termsAccepted?: string;
 }
 
 export interface SignInResult {
@@ -68,7 +74,7 @@ export function configureAuth(config: AuthConfig): void {
         loginWith: {
           oauth: {
             domain: config.oauthDomain,
-            scopes: ['openid', 'email', 'profile'],
+            scopes: ['openid', 'email', 'profile', 'aws.cognito.signin.user.admin'],
             redirectSignIn: [config.redirectSignIn],
             redirectSignOut: [config.redirectSignOut],
             responseType: 'code',
@@ -101,7 +107,8 @@ export async function signIn(email: string, password: string): Promise<SignInRes
  * Requirement 16.3: soportar inicio de sesión con Google.
  */
 export async function signInWithGoogle(): Promise<void> {
-  await signInWithRedirect({ provider: 'Google' });
+  // Sin esto, Google reutiliza su sesión abierta y tras cerrar sesión se entra sin preguntar.
+  await signInWithRedirect({ provider: 'Google', options: { prompt: 'SELECT_ACCOUNT' } });
 }
 
 // ─── Registro ──────────────────────────────────────────────────────────────────
@@ -115,7 +122,7 @@ export async function signUp(email: string, password: string): Promise<SignUpRes
     username: email,
     password,
     options: {
-      userAttributes: { email },
+      userAttributes: { email, 'custom:terms_accepted': termsAcceptanceValue() },
     },
   });
   return {
@@ -140,6 +147,11 @@ export async function confirmSignUp(email: string, confirmationCode: string): Pr
 
 // ─── Sesión ────────────────────────────────────────────────────────────────────
 
+/** Reenvía el código de verificación de una cuenta sin confirmar. */
+export async function resendSignUpCode(email: string): Promise<void> {
+  await amplifyResendSignUpCode({ username: email });
+}
+
 /**
  * Cierra la sesión del usuario actual, eliminando todos los tokens almacenados.
  * Requirement 16.7: cerrar sesión eliminando tokens.
@@ -154,11 +166,25 @@ export async function signOut(): Promise<void> {
  */
 export async function getCurrentUser(): Promise<AuthUser> {
   const user = await amplifyGetCurrentUser();
+  // Con Google, username es un id interno y signInDetails viene vacío: el dato real está en el ID token.
+  let claims: Record<string, unknown> | undefined;
+  try {
+    claims = (await fetchAuthSession()).tokens?.idToken?.payload;
+  } catch {
+    // Mostrar el nombre no debe cerrar una sesión válida si el token no se puede leer.
+  }
   return {
     userId: user.userId,
     username: user.username,
-    email: user.signInDetails?.loginId,
+    email: (claims?.email as string | undefined) ?? user.signInDetails?.loginId,
+    name: claims?.name as string | undefined,
+    termsAccepted: claims?.['custom:terms_accepted'] as string | undefined,
   };
+}
+
+/** Guarda la aceptación de una cuenta que no pasó por el formulario de registro (Google). */
+export async function recordTermsAcceptance(): Promise<void> {
+  await updateUserAttributes({ userAttributes: { 'custom:terms_accepted': termsAcceptanceValue() } });
 }
 
 /**
