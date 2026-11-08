@@ -39,6 +39,7 @@ export class AccesoPage {
     await this.correo.fill(correo);
     await this.page.locator('#password').fill(clave);
     await this.page.locator('#confirm-password').fill(confirmacion);
+    await this.page.locator('#accept-terms').click();
     await this.page.getByRole('button', { name: /crear cuenta/i }).click();
   }
 

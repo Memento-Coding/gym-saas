@@ -8,12 +8,12 @@
 
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { LEGAL_UPDATED } from '@/config/legal';
 
 // Persona natural responsable mientras no exista una empresa constituida.
 const OPERATOR = 'GymOps';
 const RESPONSIBLE = 'Jhoan Sebastian Rojas';
 const CONTACT_EMAIL = 'privacidad@gym-ops.fit';
-const UPDATED = '8 de noviembre de 2026';
 
 function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -22,7 +22,7 @@ function LegalLayout({ title, children }: { title: string; children: ReactNode }
         ← GymOps
       </Link>
       <h1 className="mt-6 text-2xl font-semibold tracking-tight">{title}</h1>
-      <p className="text-muted-foreground">Última actualización: {UPDATED}</p>
+      <p className="text-muted-foreground">Última actualización: {LEGAL_UPDATED}</p>
       {children}
     </main>
   );

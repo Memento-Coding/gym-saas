@@ -16,6 +16,8 @@ vi.mock('aws-amplify/auth', () => ({
   signIn: vi.fn(),
   signUp: vi.fn(),
   confirmSignUp: vi.fn(),
+  resendSignUpCode: vi.fn(),
+  updateUserAttributes: vi.fn(),
   signOut: vi.fn(),
   getCurrentUser: vi.fn(),
   fetchAuthSession: vi.fn(),
@@ -31,6 +33,8 @@ import {
   confirmSignUp as amplifyConfirmSignUp,
   signOut as amplifySignOut,
   getCurrentUser as amplifyGetCurrentUser,
+  resendSignUpCode as amplifyResendSignUpCode,
+  updateUserAttributes,
   fetchAuthSession,
   resetPassword as amplifyResetPassword,
   confirmResetPassword as amplifyConfirmResetPassword,
@@ -38,6 +42,8 @@ import {
 } from 'aws-amplify/auth';
 
 import {
+  resendSignUpCode,
+  recordTermsAcceptance,
   configureAuth,
   signIn,
   signInWithGoogle,
@@ -51,6 +57,7 @@ import {
 } from './AuthService';
 
 import type { AuthConfig } from '@/types/settings';
+import { LEGAL_UPDATED } from '@/config/legal';
 
 const mockConfig: AuthConfig = {
   userPoolId: 'us-east-1_TestPool',
@@ -60,6 +67,9 @@ const mockConfig: AuthConfig = {
   redirectSignIn: 'http://localhost:3000/',
   redirectSignOut: 'http://localhost:3000/login',
 };
+
+// "<versión legal>|<fecha ISO>"
+const TERMS_VALUE = expect.stringMatching(new RegExp(`^${LEGAL_UPDATED}\\|\\d{4}-\\d{2}-\\d{2}T.+Z$`));
 
 describe('AuthService', () => {
   beforeEach(() => {
@@ -78,7 +88,7 @@ describe('AuthService', () => {
             loginWith: {
               oauth: {
                 domain: 'auth.example.com',
-                scopes: ['openid', 'email', 'profile'],
+                scopes: ['openid', 'email', 'profile', 'aws.cognito.signin.user.admin'],
                 redirectSignIn: ['http://localhost:3000/'],
                 redirectSignOut: ['http://localhost:3000/login'],
                 responseType: 'code',
@@ -124,13 +134,32 @@ describe('AuthService', () => {
     });
   });
 
+  describe('recordTermsAcceptance', () => {
+    it('guarda versión y fecha en Cognito', async () => {
+      await recordTermsAcceptance();
+      expect(updateUserAttributes).toHaveBeenCalledWith({
+        userAttributes: { 'custom:terms_accepted': TERMS_VALUE },
+      });
+    });
+  });
+
+  describe('resendSignUpCode', () => {
+    it('reenvía el código al correo indicado', async () => {
+      await resendSignUpCode('ana@test.com');
+      expect(amplifyResendSignUpCode).toHaveBeenCalledWith({ username: 'ana@test.com' });
+    });
+  });
+
   describe('signInWithGoogle', () => {
     it('should call signInWithRedirect with Google provider', async () => {
       vi.mocked(signInWithRedirect).mockResolvedValue(undefined);
 
       await signInWithGoogle();
 
-      expect(signInWithRedirect).toHaveBeenCalledWith({ provider: 'Google' });
+      expect(signInWithRedirect).toHaveBeenCalledWith({
+        provider: 'Google',
+        options: { prompt: 'SELECT_ACCOUNT' },
+      });
     });
   });
 
@@ -148,7 +177,7 @@ describe('AuthService', () => {
         username: 'new@test.com',
         password: 'securePass1!',
         options: {
-          userAttributes: { email: 'new@test.com' },
+          userAttributes: { email: 'new@test.com', 'custom:terms_accepted': TERMS_VALUE },
         },
       });
       expect(result).toEqual({
@@ -189,6 +218,22 @@ describe('AuthService', () => {
   });
 
   describe('getCurrentUser', () => {
+    it('toma nombre y correo del ID token cuando entra con Google', async () => {
+      vi.mocked(amplifyGetCurrentUser).mockResolvedValue({ userId: 'u-1', username: 'google_1234567890' });
+      vi.mocked(fetchAuthSession).mockResolvedValue({
+        tokens: { idToken: { payload: { email: 'ana@test.com', name: 'Ana Ruiz' } } },
+      } as unknown as Awaited<ReturnType<typeof fetchAuthSession>>);
+
+      await expect(getCurrentUser()).resolves.toMatchObject({ email: 'ana@test.com', name: 'Ana Ruiz' });
+    });
+
+    it('conserva la sesión si no se puede leer el token', async () => {
+      vi.mocked(amplifyGetCurrentUser).mockResolvedValue({ userId: 'u-1', username: 'u' });
+      vi.mocked(fetchAuthSession).mockRejectedValue(new Error('offline'));
+
+      await expect(getCurrentUser()).resolves.toMatchObject({ userId: 'u-1', name: undefined });
+    });
+
     it('should return user info from amplifyGetCurrentUser', async () => {
       vi.mocked(amplifyGetCurrentUser).mockResolvedValue({
         userId: 'user-123',

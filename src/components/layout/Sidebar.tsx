@@ -103,9 +103,9 @@ export function Sidebar() {
         {user && (
           <div className="hidden lg:flex flex-col px-3 py-2 mb-1 rounded-xl bg-sidebar-accent/40">
             <span className="text-xs font-semibold text-sidebar-foreground truncate">
-              {user.username}
+              {user.name ?? user.email ?? 'Usuario'}
             </span>
-            {user.email && (
+            {user.name && user.email && (
               <span className="text-xs text-sidebar-foreground/70 truncate">
                 {user.email}
               </span>

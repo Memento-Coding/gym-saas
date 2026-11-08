@@ -82,9 +82,9 @@ export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
           {user && (
             <div className="flex flex-col px-3 py-2 mb-1 rounded-xl bg-muted/50">
               <span className="text-xs font-semibold truncate">
-                {user.username}
+                {user.name ?? user.email ?? 'Usuario'}
               </span>
-              {user.email && (
+              {user.name && user.email && (
                 <span className="text-xs text-muted-foreground truncate">
                   {user.email}
                 </span>
