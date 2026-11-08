@@ -40,7 +40,6 @@ import type { PaymentMethod, PaymentSplit } from '@/types/payment';
 import type { MembershipPlan } from '@/types/membership';
 import {
   toIsoDateUTC,
-  isoDateSchema,
   selectFromSource,
   nonNegativeAmount,
 } from '@/utils/validation';
@@ -93,8 +92,6 @@ function todayISO(): string {
 function buildPaymentSchema(allPlans: MembershipPlan[]) {
   return z
     .object({
-      date: isoDateSchema('La fecha de pago'),
-      category: z.enum(['mensualidad', 'personalizada']),
       // Select validado contra el catálogo real de planes.
       planId: selectFromSource(allPlans, (p) => p.id, 'El plan'),
       status: z.enum(PAYMENT_STATUSES),
@@ -103,6 +100,9 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
       discount: nonNegativeAmount('El descuento'),
       discountReason: z.string().optional().default(''),
       useSplit: z.boolean().default(false),
+      // Zod descarta las claves que no declare el esquema.
+      initialPayment: z.string().optional().default(''),
+      installmentType: z.enum(['single', 'three_installments']).default('single'),
     })
     .superRefine((data, ctx) => {
       // El descuento no puede igualar ni superar el precio del plan elegido.

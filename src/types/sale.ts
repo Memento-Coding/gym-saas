@@ -6,6 +6,8 @@
 import type { PaymentMethod } from './payment';
 
 export interface SaleItem {
+  /** La API solo descuenta stock de los productos. */
+  kind?: 'product' | 'service';
   inventoryId: string;
   name: string;
   quantity: number;

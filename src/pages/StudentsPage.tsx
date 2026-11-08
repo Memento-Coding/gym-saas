@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 import type { Student } from '@/types/student';
 import { studentService, type StudentFilterCriteria } from '@/services/StudentService';
@@ -47,6 +48,7 @@ import {
 const MotionButton = motion.create(Button);
 
 export function StudentsPage() {
+  const navigate = useNavigate();
   const { students, isLoading, create, update, remove, freeze, unfreeze } =
     useStudents();
 
@@ -198,6 +200,7 @@ export function StudentsPage() {
         student={selectedFresh}
         open={profileOpen}
         onOpenChange={setProfileOpen}
+        onPayments={(s) => navigate(`/estudiantes/${encodeURIComponent(s.id)}`)}
         onEdit={openEdit}
         onFreeze={handleFreeze}
         onUnfreeze={handleUnfreeze}

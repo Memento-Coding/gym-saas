@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Pencil, Snowflake, Sun, Trash2 } from 'lucide-react';
+import { CreditCard, Pencil, Snowflake, Sun, Trash2 } from 'lucide-react';
 
 import type { Student } from '@/types/student';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,8 @@ export interface StudentProfileProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: (student: Student) => void;
+  /** Abre la página de pagos del estudiante. */
+  onPayments?: (student: Student) => void;
   onFreeze: (id: string, reason: string, days: number) => Promise<void>;
   onUnfreeze: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -60,6 +62,7 @@ export function StudentProfile({
   open,
   onOpenChange,
   onEdit,
+  onPayments,
   onFreeze,
   onUnfreeze,
   onDelete,
@@ -201,6 +204,16 @@ export function StudentProfile({
             >
               <Pencil /> Editar
             </MotionButton>
+
+            {onPayments && (
+              <MotionButton
+                whileTap={{ scale: 0.97 }}
+                variant="outline"
+                onClick={() => onPayments(student)}
+              >
+                <CreditCard /> Pagos
+              </MotionButton>
+            )}
 
             {isFrozen ? (
               <MotionButton

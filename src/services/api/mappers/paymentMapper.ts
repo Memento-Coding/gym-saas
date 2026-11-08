@@ -64,6 +64,7 @@ export function apiToPayment(api: ApiPayment): Payment {
 
   return {
     id: api.id ?? api.receiptNo ?? crypto.randomUUID(),
+    studentId: api.studentId,
     date: api.date ?? (api.createdAt ? api.createdAt.slice(0, 10) : ''),
     amount: api.grossAmount ?? 0,
     method: toMethod(api.method),
@@ -82,7 +83,18 @@ export function apiToPayment(api: ApiPayment): Payment {
  * Requiere el studentId, que no está en Payment (vive en el estudiante); el
  * recurso lo inyecta desde el contexto de escritura.
  */
-export function paymentToApi(payment: Payment, studentId: string): Record<string, unknown> {
+export interface PaymentApiExtras {
+  /** Nueva fecha de vencimiento; si viene, la API extiende la membresía. */
+  extensionDate?: string;
+  /** Plan de cuotas, obligatorio en la API para pagos a crédito. */
+  credit?: { initialDown: number; installments: { number: number; amount: number; dueDate: string }[] };
+}
+
+export function paymentToApi(
+  payment: Payment,
+  studentId: string,
+  extras: PaymentApiExtras = {},
+): Record<string, unknown> {
   const paymentType =
     payment.status === 'credit'
       ? 'credit'
@@ -106,6 +118,15 @@ export function paymentToApi(payment: Payment, studentId: string): Record<string
       value: payment.discount,
       reason: payment.discountReason,
     };
+  }
+
+  if (extras.extensionDate) {
+    body.extendMembership = true;
+    body.extensionDate = extras.extensionDate;
+  }
+
+  if (extras.credit) {
+    body.credit = extras.credit;
   }
 
   if (paymentType === 'split' && payment.splits) {
