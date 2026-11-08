@@ -37,3 +37,8 @@ Si el dueño no está activo, pregunta al dueño del repo antes de editar.
 - Después de cada fusión, actualiza tu rama desde `develop` antes de seguir.
 - Avisa por `SendMessage` antes de cambiar un tipo o un contrato de API que otra área use.
 - Si un test falla, compáralo con `develop` antes de atribuirlo a tu cambio.
+
+## Tests
+
+- Corre los tests unitarios con Node 22 (`.nvmrc`). Node 26 rompe el `localStorage` de jsdom y hace fallar decenas de tests.
+- El estándar de pruebas está en `docs/STEERING_TESTING.md`.
