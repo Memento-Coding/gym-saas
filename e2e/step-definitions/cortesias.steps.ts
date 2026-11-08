@@ -3,30 +3,34 @@
  * Steps para: features/cortesias/gestion-cortesias.feature
  */
 
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { Given, When, Then } from '../support/world';
 import { CourtesiesPage } from '../pages/CourtesiesPage';
 import { TEST_STUDENT } from '../fixtures/students';
 import { seedAll, lsGet } from '../helpers/seed';
+import { diasDesdeHoy } from '../helpers/dates';
 
 // ── Estado compartido dentro del escenario ────────────────────────────────────
 // Nota: playwright-bdd crea una instancia nueva de los steps por cada escenario,
 // por lo que esta variable es segura en modo serial (workers: 1).
 
 let courtesiesPage: CourtesiesPage;
+let vencimientoInicial: string;
 
 // ── Antecedentes / Given ──────────────────────────────────────────────────────
 
-Given('que existe el estudiante {string} en el sistema', async ({ page }, _nombre: string) => {
-  await seedAll(page, { students: [TEST_STUDENT] });
+Given('que existe el estudiante {string} en el sistema', async ({ page }, nombre: string) => {
+  const [firstName, ...resto] = nombre.split(' ');
+  await seedAll(page, { students: [{ ...TEST_STUDENT, firstName, lastName: resto.join(' ') }] });
   courtesiesPage = new CourtesiesPage(page);
 });
 
 Given(
-  'que "Ana García" tiene membresía vigente hasta {string}',
-  async ({ page }, fechaFin: string) => {
+  'que "Ana García" tiene membresía vigente por {int} días más',
+  async ({ page }, dias: number) => {
+    vencimientoInicial = diasDesdeHoy(dias);
     await seedAll(page, {
-      students: [{ ...TEST_STUDENT, subscriptionEndDate: fechaFin }],
+      students: [{ ...TEST_STUDENT, subscriptionEndDate: vencimientoInicial }],
     });
     courtesiesPage = new CourtesiesPage(page);
   },
@@ -141,12 +145,55 @@ Then('debería ver la razón {string} en la lista', async ({}, razon: string) =>
 });
 
 Then(
-  'la fecha de vencimiento de membresía de {string} debe seguir siendo {string}',
-  async ({ page }, _nombre: string, fechaEsperada: string) => {
+  'la fecha de vencimiento de membresía de {string} debería seguir igual',
+  async ({ page }, _nombre: string) => {
     const students = await lsGet<Array<{ subscriptionEndDate: string }>>(page, 'students');
-    expect(students?.[0]?.subscriptionEndDate).toBe(fechaEsperada);
+    expect(students?.[0]?.subscriptionEndDate).toBe(vencimientoInicial);
   },
 );
+
+When(
+  'intenta registrar para {string} un bono de {string} semanas con razón {string}',
+  async ({ page }, nombre: string, semanas: string, razon: string) => {
+    await courtesiesPage.abrirDialogoNuevoBono();
+    await courtesiesPage.seleccionarEstudiante(nombre);
+    await page.getByLabel(/fecha de inicio/i).fill(diasDesdeHoy(1));
+    await page.getByLabel(/duración/i).fill(semanas);
+    await page.getByLabel(/razón/i).fill(razon);
+    await registrarSiSePuede();
+  },
+);
+
+When('intenta registrar un bono sin elegir estudiante', async ({ page }) => {
+  await courtesiesPage.abrirDialogoNuevoBono();
+  await page.getByLabel(/fecha de inicio/i).fill(diasDesdeHoy(1));
+  await page.getByLabel(/duración/i).fill('2');
+  await page.getByLabel(/razón/i).fill('Sin estudiante E2E');
+  await registrarSiSePuede();
+});
+
+/** Un botón deshabilitado ya es un rechazo válido: el escenario verifica que no se guardó nada. */
+async function registrarSiSePuede() {
+  if (await courtesiesPage.dialogBtnRegistrar.isEnabled()) await courtesiesPage.registrarBono();
+}
+
+const bonosGuardados = async (page: Page) => {
+  await page.waitForTimeout(300);
+  const students = await lsGet<Array<{ courtesyBonuses?: unknown[] }>>(page, 'students');
+  return students?.[0]?.courtesyBonuses ?? [];
+};
+
+Then('no debería existir ningún bono guardado', async ({ page }) => {
+  expect(await bonosGuardados(page)).toHaveLength(0);
+});
+
+Then('deberían existir {int} bonos guardados', async ({ page }, n: number) => {
+  expect(await bonosGuardados(page)).toHaveLength(n);
+});
+
+Then('el formulario de bono debería seguir abierto', async ({ page }) => {
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
 
 Then('el bono debería mostrar el badge {string}', async ({}, badge: string) => {
   await expect(courtesiesPage.badgeEstado(badge)).toBeVisible();

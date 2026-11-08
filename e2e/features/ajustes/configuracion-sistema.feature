@@ -36,7 +36,7 @@ Característica: Configuración del sistema
     Entonces debería ver el campo "Nivel Cinturón E2E" en la lista
 
   @regresion
-  Escenario: Eliminar un campo personalizado requiere confirmación explícita
+  Escenario: Administrador elimina un campo personalizado tras confirmar
     Dado que existe el campo personalizado "Campo a Borrar E2E" en el formulario
     Cuando accede al módulo de ajustes
     Y navega a la pestaña de formulario
@@ -72,3 +72,17 @@ Característica: Configuración del sistema
     Cuando accede al módulo de ajustes
     Y navega a la pestaña de comunicación en ajustes
     Entonces debería ver los canales "Email", "Telegram" y "WhatsApp"
+
+  @adversarial
+  Esquema del escenario: El reinicio no se habilita con un texto de confirmación incorrecto
+    Cuando accede al módulo de ajustes
+    Y navega a la pestaña de backup
+    Y abre el diálogo de reinicio del sistema
+    Y escribe "<texto>" como confirmación de reinicio
+    Entonces el botón de confirmar reinicio debería seguir deshabilitado
+
+    Ejemplos:
+      | texto      |
+      | reiniciar  |
+      | REINICIA   |
+      | BORRAR     |

@@ -15,13 +15,6 @@ Característica: Gestión de cortesías y bonos
     Y debería ver el mensaje de que no hay bonos registrados
 
   @critico
-  Escenario: Administrador abre el formulario para registrar un nuevo bono
-    Cuando accede al módulo de cortesías
-    Y hace clic en el botón de nuevo bono
-    Entonces debería ver el diálogo de registro
-    Y debería ver el selector de estudiante en el formulario
-
-  @critico
   Escenario: Administrador registra un bono de cortesía para un estudiante
     Cuando accede al módulo de cortesías
     Y registra un bono de cortesía para "Ana García" de 2 semanas con razón "Compensación por cierre E2E"
@@ -30,10 +23,10 @@ Característica: Gestión de cortesías y bonos
 
   @critico
   Escenario: El bono de cortesía no modifica la fecha de vencimiento de la membresía
-    Dado que "Ana García" tiene membresía vigente hasta "2025-12-31"
+    Dado que "Ana García" tiene membresía vigente por 60 días más
     Cuando accede al módulo de cortesías
     Y registra un bono de cortesía para "Ana García" de 4 semanas con razón "Cortesía especial E2E"
-    Entonces la fecha de vencimiento de membresía de "Ana García" debe seguir siendo "2025-12-31"
+    Entonces la fecha de vencimiento de membresía de "Ana García" debería seguir igual
 
   @regresion
   Escenario: Bono activo muestra el badge de estado correcto
@@ -47,3 +40,32 @@ Característica: Gestión de cortesías y bonos
     Cuando accede al módulo de cortesías
     Y elimina el bono con razón "Bono a eliminar E2E"
     Entonces ese bono no debería aparecer en la lista
+
+  @adversarial
+  Esquema del escenario: Datos inválidos no registran el bono
+    Cuando accede al módulo de cortesías
+    Y intenta registrar para "Ana García" un bono de "<semanas>" semanas con razón "<razon>"
+    Entonces no debería existir ningún bono guardado
+    Y el formulario de bono debería seguir abierto
+
+    Ejemplos:
+      | semanas | razon  |
+      | 0       | Cierre |
+      | -3      | Cierre |
+      | 1.5     | Cierre |
+      | 2       |        |
+      | 53      | Cierre |
+
+  @adversarial
+  Escenario: Un bono sin estudiante no se registra
+    Cuando accede al módulo de cortesías
+    Y intenta registrar un bono sin elegir estudiante
+    Entonces no debería existir ningún bono guardado
+    Y el formulario de bono debería seguir abierto
+
+  @adversarial
+  Escenario: Dos bonos del mismo día se conservan ambos
+    Cuando accede al módulo de cortesías
+    Y registra un bono de cortesía para "Ana García" de 2 semanas con razón "Primer bono E2E"
+    Y registra un bono de cortesía para "Ana García" de 2 semanas con razón "Segundo bono E2E"
+    Entonces deberían existir 2 bonos guardados
