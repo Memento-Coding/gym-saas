@@ -18,7 +18,7 @@ const UPDATED = '8 de noviembre de 2026';
 function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 text-sm leading-relaxed [&_h2]:mt-8 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
-      <Link to="/login" className="text-primary font-medium hover:underline">
+      <Link to="/login" className="text-primary font-medium underline underline-offset-4">
         ← GymOps
       </Link>
       <h1 className="mt-6 text-2xl font-semibold tracking-tight">{title}</h1>
@@ -28,7 +28,7 @@ function LegalLayout({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-const contact = <a className="text-primary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>;
+const contact = <a className="text-primary underline underline-offset-4" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>;
 
 export function PrivacyPage() {
   return (
@@ -115,7 +115,7 @@ export function TermsPage() {
       <p>
         El gimnasio es dueño de la información que registra y responsable de contar con la autorización de sus
         alumnos para tratarla. {OPERATOR} la trata según la{' '}
-        <Link to="/privacidad" className="text-primary hover:underline">política de tratamiento de datos</Link>.
+        <Link to="/privacidad" className="text-primary underline underline-offset-4">política de tratamiento de datos</Link>.
       </p>
 
       <h2>4. Uso aceptable</h2>

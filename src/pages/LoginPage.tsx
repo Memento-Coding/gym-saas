@@ -89,8 +89,8 @@ export function LoginPage() {
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           background:
-            'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99,102,241,0.12) 0%, transparent 60%), ' +
-            'radial-gradient(ellipse 60% 40% at 80% 100%, rgba(249,115,22,0.06) 0%, transparent 50%)',
+            'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(35,40,46,0.08) 0%, transparent 60%), ' +
+            'radial-gradient(ellipse 60% 40% at 80% 100%, rgba(35,40,46,0.04) 0%, transparent 50%)',
         }}
       />
 
@@ -202,7 +202,7 @@ export function LoginPage() {
 
               <p className="text-center text-sm text-muted-foreground pt-1">
                 ¿No tienes cuenta?{' '}
-                <Link to="/registro" className="text-primary font-medium hover:underline">
+                <Link to="/registro" className="text-primary font-medium underline underline-offset-4">
                   Regístrate
                 </Link>
               </p>

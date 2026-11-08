@@ -129,7 +129,7 @@ export function ForgotPasswordPage() {
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  <Link to="/login" className="text-primary hover:underline">
+                  <Link to="/login" className="text-primary underline underline-offset-4">
                     Volver al inicio de sesión
                   </Link>
                 </p>
@@ -195,7 +195,7 @@ export function ForgotPasswordPage() {
                       setNewPassword('');
                       setConfirmPassword('');
                     }}
-                    className="text-primary hover:underline"
+                    className="text-primary underline underline-offset-4"
                   >
                     Volver al inicio de sesión
                   </button>

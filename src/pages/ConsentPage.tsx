@@ -131,8 +131,8 @@ export function ConsentPage() {
 
           <Card size="sm">
             <CardContent className="flex items-center gap-3 pt-4">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-orange-500/10">
-                <Users className="size-5 text-orange-500" />
+              <div className="flex size-10 items-center justify-center rounded-lg bg-warning-50">
+                <Users className="size-5 text-warning-700" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Pendientes</p>
@@ -143,8 +143,8 @@ export function ConsentPage() {
 
           <Card size="sm">
             <CardContent className="flex items-center gap-3 pt-4">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-green-500/10">
-                <Clock className="size-5 text-green-500" />
+              <div className="flex size-10 items-center justify-center rounded-lg bg-success-50">
+                <Clock className="size-5 text-success-700" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Última actualización</p>

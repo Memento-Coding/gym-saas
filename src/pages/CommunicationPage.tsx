@@ -390,7 +390,7 @@ export function CommunicationPage() {
                   {/* Enviados */}
                   {batchResult.sent.length > 0 && (
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                      <div className="flex items-center gap-2 text-sm font-medium text-success-700">
                         <CheckCircle2 className="size-4" />
                         Enviados ({batchResult.sent.length})
                       </div>
@@ -411,7 +411,7 @@ export function CommunicationPage() {
                   {/* Omitidos */}
                   {batchResult.skipped.length > 0 && (
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-orange-600">
+                      <div className="flex items-center gap-2 text-sm font-medium text-warning-700">
                         <XCircle className="size-4" />
                         Omitidos ({batchResult.skipped.length})
                       </div>
