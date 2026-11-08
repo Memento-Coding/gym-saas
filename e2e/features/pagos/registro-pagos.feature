@@ -38,3 +38,30 @@ Característica: Registro de pagos de membresía
   Escenario: Un doble clic en confirmar registra un solo pago
     Cuando confirma con doble clic un pago del primer plan
     Entonces debería existir 1 pago registrado con descuento 0
+
+  @critico
+  Escenario: Un pago dividido que suma el total se registra con sus partes
+    Cuando confirma un pago del primer plan dividido en dos partes que suman el total
+    Entonces debería existir 1 pago registrado con 2 partes
+
+  @adversarial
+  Escenario: Un pago dividido que no suma el total se rechaza
+    Cuando confirma un pago del primer plan dividido en dos partes que no suman el total
+    Entonces no debería existir ningún pago registrado
+
+  @regresion
+  Escenario: Un pago a crédito se registra con su abono
+    Cuando confirma un pago a crédito del primer plan con abono "1000"
+    Entonces debería existir 1 pago registrado a crédito
+
+  @adversarial
+  Esquema del escenario: Un abono inválido no registra el crédito
+    Cuando confirma un pago a crédito del primer plan con abono "<abono>"
+    Entonces no debería existir ningún pago registrado
+    Y el formulario de pago debería seguir abierto mostrando un error
+
+    Ejemplos:
+      | abono    |
+      | -1       |
+      | abc      |
+      | 99999999 |

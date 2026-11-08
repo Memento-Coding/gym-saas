@@ -93,7 +93,7 @@ When('accede al módulo de cortesías', async ({ page }) => {
   await courtesiesPage.goto();
 });
 
-When('hace clic en el botón de nuevo bono', async ({}) => {
+When('empieza a registrar un bono', async ({}) => {
   await courtesiesPage.abrirDialogoNuevoBono();
 });
 
@@ -146,9 +146,10 @@ Then('debería ver la razón {string} en la lista', async ({}, razon: string) =>
 
 Then(
   'la fecha de vencimiento de membresía de {string} debería seguir igual',
-  async ({ page }, _nombre: string) => {
-    const students = await lsGet<Array<{ subscriptionEndDate: string }>>(page, 'students');
-    expect(students?.[0]?.subscriptionEndDate).toBe(vencimientoInicial);
+  async ({ page }, nombre: string) => {
+    const students = await lsGet<Array<{ firstName: string; lastName: string; subscriptionEndDate: string }>>(page, 'students');
+    const estudiante = students?.find((s) => `${s.firstName} ${s.lastName}` === nombre);
+    expect(estudiante?.subscriptionEndDate).toBe(vencimientoInicial);
   },
 );
 

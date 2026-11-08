@@ -29,9 +29,9 @@ reglas de Gherkin y definición de terminado. CI lo hace cumplir.
 | Finanzas | `FinanceService.ts` | `src/__tests__/FinanceService.test.ts` | `e2e/features/finanzas/traslados.feature` |
 | Ventas | `SaleService.ts` | — | `e2e/features/ventas/gestion-ventas.feature` |
 | Inventario | `InventoryService.ts` | — | `e2e/features/inventario/gestion-inventario.feature` |
-| Dashboard | `DashboardService.ts` | `src/__tests__/DashboardService.test.ts` | — |
+| Dashboard | `DashboardService.ts` | `src/__tests__/DashboardService.test.ts` | `e2e/features/dashboard/panel-principal.feature` |
 | Storage | `StorageService.ts` | `src/services/storage/StorageService.test.ts` | — |
-| Auth | `AuthService.ts` + `AuthProvider.tsx` | `src/services/auth/AuthService.test.ts` + `AuthProvider.test.tsx` + `ProtectedRoute.test.tsx` | — |
+| Auth | `AuthService.ts` + `AuthProvider.tsx` | `src/services/auth/AuthService.test.ts` + `AuthProvider.test.tsx` + `ProtectedRoute.test.tsx` | `e2e/features/autenticacion/` |
 
 ### Módulos con cobertura PARCIAL ⚠️
 
@@ -47,8 +47,6 @@ reglas de Gherkin y definición de terminado. CI lo hace cumplir.
 | Módulo | Página | Qué falta |
 |---|---|---|
 | Membresía | — | Tests unitarios de `MembershipService.ts` |
-| Login / Registro | `LoginPage.tsx` + `RegisterPage.tsx` + `ForgotPasswordPage.tsx` | Feature E2E de autenticación |
-| Dashboard | `DashboardPage.tsx` | Feature E2E |
 
 ---
 
@@ -158,5 +156,3 @@ Cuando el usuario pida agregar pruebas o implementar un módulo sin cobertura, p
 3. **`MembershipService.ts`** — Tests unitarios
 4. **`CommunicationService.ts`** — Tests unitarios (el E2E ya existe)
 5. **`CourtesyService.ts`** — Tests unitarios (el E2E ya existe)
-8. **`e2e/features/autenticacion/`** — Feature E2E para login/registro
-9. **`e2e/features/dashboard/`** — Feature E2E para `DashboardPage`

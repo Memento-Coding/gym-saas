@@ -7,6 +7,7 @@ import { expect } from '@playwright/test';
 import { Given, When, Then } from '../support/world';
 import { FinanzasPage } from '../pages/FinanzasPage';
 import { lsGet, seedAll } from '../helpers/seed';
+import { diasDesdeHoy } from '../helpers/dates';
 
 let finanzas: FinanzasPage;
 
@@ -14,7 +15,8 @@ type Item = { id: string; name: string; price: number; stock: number | null };
 type Movimiento = { type: string; amount: number };
 
 const items = () => lsGet<Item[]>(finanzas.page, 'inventory_items').then((l) => l ?? []);
-const ventas = () => lsGet<unknown[]>(finanzas.page, 'sales').then((l) => l ?? []);
+type Venta = { type: string; creditPlan?: { installments: unknown[] } };
+const ventas = () => lsGet<Venta[]>(finanzas.page, 'sales').then((l) => l ?? []);
 const movimientos = () => lsGet<Movimiento[]>(finanzas.page, 'finance_movements').then((l) => l ?? []);
 
 Given(
@@ -30,11 +32,11 @@ Given(
   },
 );
 
-When('abre la pestaña de ventas', async () => {
+When('entra a la sección de ventas', async () => {
   await finanzas.abrirPestana(/^ventas$/i);
 });
 
-When('abre la pestaña de inventario', async () => {
+When('entra a la sección de inventario', async () => {
   await finanzas.abrirPestana(/^inventario$/i);
 });
 
@@ -100,6 +102,29 @@ When('cambia el stock de {string} a {string}', async ({}, nombre: string, stock:
 When('intenta eliminar {string} y cancela la confirmación', async ({ page }, nombre: string) => {
   page.once('dialog', (d) => d.dismiss());
   await finanzas.filaItem(nombre).getByRole('button', { name: /eliminar/i }).click();
+});
+
+When(
+  'vende a crédito {int} de {string} al cliente {string} con vencimiento en {int} días',
+  async ({}, n: number, item: string, cliente: string, dias: number) => {
+    await finanzas.llenarVenta(String(n), item, cliente);
+    await finanzas.elegirCredito();
+    await finanzas.panel.locator('#credit-date').fill(diasDesdeHoy(dias));
+    await finanzas.btnVenta.click();
+  },
+);
+
+When('elimina {string} confirmando la acción', async ({ page }, nombre: string) => {
+  page.once('dialog', (d) => d.accept());
+  await finanzas.filaItem(nombre).getByRole('button', { name: /eliminar/i }).click();
+});
+
+Then('debería existir {int} venta a crédito con {int} cuota', async ({}, n: number, cuotas: number) => {
+  await finanzas.asentar();
+  const lista = await ventas();
+  expect(lista).toHaveLength(n);
+  expect(lista[0].type).toBe('credit');
+  expect(lista[0].creditPlan?.installments).toHaveLength(cuotas);
 });
 
 Then('debería ver {string} en el inventario', async ({}, nombre: string) => {

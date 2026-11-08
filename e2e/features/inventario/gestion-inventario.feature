@@ -7,7 +7,7 @@ Característica: Inventario de productos y servicios
 
   Antecedentes:
     Dado que hay en inventario 5 unidades de "Proteína E2E" y el servicio "Masaje E2E"
-    Cuando abre la pestaña de inventario
+    Cuando entra a la sección de inventario
 
   @smoke
   Escenario: El inventario muestra los ítems existentes
@@ -42,3 +42,9 @@ Característica: Inventario de productos y servicios
   Escenario: Cancelar la confirmación no elimina el ítem
     Cuando intenta eliminar "Proteína E2E" y cancela la confirmación
     Entonces el catálogo debería seguir teniendo 2 ítems
+
+  @regresion
+  Escenario: Confirmar la eliminación quita el ítem del catálogo
+    Cuando elimina "Proteína E2E" confirmando la acción
+    Entonces no debería existir el ítem "Proteína E2E"
+    Y el catálogo debería seguir teniendo 1 ítems
