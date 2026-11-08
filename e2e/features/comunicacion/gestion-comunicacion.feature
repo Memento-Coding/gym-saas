@@ -69,3 +69,10 @@ Característica: Gestión de comunicación con estudiantes
     Y selecciona la plantilla "Aviso de vencimiento"
     Entonces debería ver la opción de previsualizar el mensaje para el estudiante
     Y al previsualizar debería ver el nombre del estudiante resuelto en el mensaje
+
+  @adversarial
+  Escenario: Una plantilla con código malicioso nunca se ejecuta
+    Dado que existe un estudiante registrado
+    Cuando accede al módulo de comunicación
+    Y edita la primera plantilla con el texto "<img src=x onerror=window.__xss=1>"
+    Entonces no debería haberse ejecutado código inyectado

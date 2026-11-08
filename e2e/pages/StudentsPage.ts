@@ -113,6 +113,21 @@ export class StudentsPage {
     await this.btnGuardar.click();
   }
 
+  /** Rellena un alta válida y sustituye un campo por el valor del ataque. */
+  async registrarConCampo(campo: string, valor: string, vencimiento: string) {
+    const validos: Record<string, string> = {
+      Nombres: 'Carlos',
+      Apellidos: 'López',
+      Documento: '50607080',
+      Vencimiento: vencimiento,
+    };
+    await this.seleccionarEnCombo(/básico/i);
+    for (const [etiqueta, dato] of Object.entries({ ...validos, [campo]: valor })) {
+      await this.llenarCampo(new RegExp(`^${etiqueta}`, 'i'), dato);
+    }
+    await this.btnGuardar.click();
+  }
+
   async abrirPerfilDe(nombre: string) {
     await this.filaEstudiante(nombre).click();
     await this.dialog.waitFor({ state: 'visible' });

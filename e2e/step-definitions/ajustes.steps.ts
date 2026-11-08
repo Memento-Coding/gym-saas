@@ -167,3 +167,11 @@ Then('debería ver los canales {string}, {string} y {string}', async ({}, ch1: s
   await expect(settingsPage.nombreCanal(ch2)).toBeVisible();
   await expect(settingsPage.nombreCanal(ch3)).toBeVisible();
 });
+
+When('escribe {string} como confirmación de reinicio', async ({}, texto: string) => {
+  await settingsPage.inputConfirmacionReinicio.fill(texto);
+});
+
+Then('el botón de confirmar reinicio debería seguir deshabilitado', async ({}) => {
+  await expect(settingsPage.btnConfirmarReinicio).toBeDisabled();
+});
