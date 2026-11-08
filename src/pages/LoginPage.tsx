@@ -209,6 +209,12 @@ export function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          <Link to="/privacidad" className="hover:underline">Privacidad</Link>
+          {' · '}
+          <Link to="/terminos" className="hover:underline">Condiciones del servicio</Link>
+        </p>
       </motion.div>
     </div>
   );
