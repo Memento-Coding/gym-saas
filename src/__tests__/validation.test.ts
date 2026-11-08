@@ -23,8 +23,16 @@ import type { Student } from '@/types/student';
 import type { MembershipPlan } from '@/types/membership';
 
 import {
-  documentSchema,
-  isValidDocumentFormat,
+  DOCUMENT_TYPES,
+  birthDateSchema,
+  copAmount,
+  documentFormatError,
+  emailSchema,
+  formatDocument,
+  isoDateSchema,
+  passwordSchema,
+  personNameSchema,
+  phoneSchema,
   isDocumentUniqueIn,
   isDocumentUnique,
   nonNegativeAmount,
@@ -63,43 +71,137 @@ const PLANS: MembershipPlan[] = [
 // UNIT — Documentos: rechazo de caracteres inválidos
 // =============================================================================
 
-describe('documentSchema / isValidDocumentFormat', () => {
-  it('acepta documentos de solo dígitos (4–20)', () => {
-    expect(documentSchema().safeParse('1234').success).toBe(true);
-    expect(documentSchema().safeParse('1002003004').success).toBe(true);
-    expect(isValidDocumentFormat('987654321')).toBe(true);
+describe('documentFormatError: documentos colombianos', () => {
+  const valid = (v: string, t?: Parameters<typeof documentFormatError>[1]) =>
+    documentFormatError(v, t) === null;
+
+  it('CC: 4 a 10 dígitos sin ceros a la izquierda', () => {
+    expect(valid('1234', 'CC')).toBe(true);
+    expect(valid('1002003004', 'CC')).toBe(true);
+    expect(valid('123', 'CC')).toBe(false);
+    expect(valid('12345678901', 'CC')).toBe(false);
+    expect(valid('0123456', 'CC')).toBe(false);
   });
 
-  it('rechaza letras y caracteres especiales', () => {
-    for (const bad of ['12A45', 'abc', '12.34', '12-34', '12 34', '++', '']) {
-      expect(documentSchema().safeParse(bad).success).toBe(false);
-      expect(isValidDocumentFormat(bad)).toBe(false);
+  it('TI: 10 u 11 dígitos; PEP: exactamente 15', () => {
+    expect(valid('1012345678', 'TI')).toBe(true);
+    expect(valid('10123456789', 'TI')).toBe(true);
+    expect(valid('123456789', 'TI')).toBe(false);
+    expect(valid('123456789012345', 'PEP')).toBe(true);
+    expect(valid('12345678901234', 'PEP')).toBe(false);
+  });
+
+  it('PA admite letras (sin importar mayúsculas); los numéricos no', () => {
+    expect(valid('at123456', 'PA')).toBe(true);
+    expect(valid('AT-123456', 'PA')).toBe(false);
+    expect(valid('AT123456', 'CC')).toBe(false);
+  });
+
+  it('distingue el mensaje de caracteres del de longitud', () => {
+    expect(documentFormatError('12A4')).toBe(messages.onlyDigits('El documento'));
+    expect(documentFormatError('123', 'CC')).toMatch(/CC: debe tener 4 a 10 dígitos/);
+  });
+
+  it('property: ningún tipo numérico acepta un valor con letras', () => {
+    const numeric = DOCUMENT_TYPES.filter((t) => t.value !== 'PA');
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...numeric.map((t) => t.value)),
+        fc.string({ minLength: 1 }).filter((s) => /[^\d\s]/.test(s)),
+        (type, s) => documentFormatError(s, type) !== null,
+      ),
+    );
+  });
+
+  it('formatDocument antepone el tipo solo si existe', () => {
+    expect(formatDocument('123456', 'CC')).toBe('CC 123456');
+    expect(formatDocument('123456')).toBe('123456');
+    expect(formatDocument('', 'CC')).toBe('');
+  });
+});
+
+describe('phoneSchema / emailSchema / personNameSchema / passwordSchema', () => {
+  it('acepta celulares y fijos colombianos y normaliza a 10 dígitos', () => {
+    expect(phoneSchema().parse('300 123 4567')).toBe('3001234567');
+    expect(phoneSchema().parse('+57 300-123-4567')).toBe('3001234567');
+    expect(phoneSchema().parse('6014567890')).toBe('6014567890');
+    expect(phoneSchema().parse('')).toBe('');
+  });
+
+  it('rechaza números que no existen en Colombia', () => {
+    for (const bad of ['1234567', '2001234567', '30012345678', '30012abc67']) {
+      expect(phoneSchema().safeParse(bad).success).toBe(false);
     }
   });
 
-  it('rechaza documentos demasiado cortos o largos', () => {
-    expect(isValidDocumentFormat('123')).toBe(false); // < 4
-    expect(isValidDocumentFormat('1'.repeat(21))).toBe(false); // > 20
+  it('un obligatorio en blanco reporta "es obligatorio"', () => {
+    const r = phoneSchema('El teléfono', true).safeParse('');
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].message).toBe(messages.required('El teléfono'));
+    const e = emailSchema('El email', true).safeParse('   ');
+    if (!e.success) expect(e.error.issues[0].message).toBe(messages.required('El email'));
+    expect(e.success).toBe(false);
   });
 
-  it('property: cualquier string con no-dígitos es rechazado', () => {
-    fc.assert(
-      fc.property(
-        fc.string({ minLength: 1 }).filter((s) => /\D/.test(s)),
-        (s) => isValidDocumentFormat(s) === false,
-      ),
-    );
+  it('nombres: tildes, ñ y apóstrofos sí; números y símbolos no', () => {
+    for (const ok of ['María José', 'Ñuñez', "D'Angelo", 'Pérez-Gómez']) {
+      expect(personNameSchema().safeParse(ok).success).toBe(true);
+    }
+    for (const bad of ['Ana2', 'A', '<script>', '@@']) {
+      expect(personNameSchema().safeParse(bad).success).toBe(false);
+    }
   });
 
-  it('property: cualquier cadena de dígitos de longitud [4,20] es aceptada', () => {
-    fc.assert(
-      fc.property(
-        fc
-          .array(fc.integer({ min: 0, max: 9 }), { minLength: 4, maxLength: 20 })
-          .map((arr) => arr.join('')),
-        (digits) => isValidDocumentFormat(digits) === true,
-      ),
-    );
+  it('contraseña: misma política de Cognito', () => {
+    expect(passwordSchema().safeParse('Abcdefg1').success).toBe(true);
+    for (const bad of ['Abc1', 'abcdefg1', 'ABCDEFG1', 'Abcdefgh']) {
+      expect(passwordSchema().safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe('copAmount / enteros estrictos', () => {
+  it('acepta enteros en pesos', () => {
+    expect(copAmount().parse('110000')).toBe(110000);
+    expect(copAmount().parse(0)).toBe(0);
+  });
+
+  it('rechaza decimales, notación científica, hexadecimal y separadores', () => {
+    for (const bad of ['99.99', '1e3', '0x10', '110.000', 'abc', 1.5, Number.NaN]) {
+      expect(copAmount().safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('el vacío es error si es obligatorio y undefined si es opcional', () => {
+    const r = copAmount('El costo').safeParse('');
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].message).toBe(messages.required('El costo'));
+    expect(copAmount('El costo', false).parse('')).toBeUndefined();
+  });
+
+  it('positiveInteger respeta su tope (cortesías: 52 semanas)', () => {
+    expect(positiveInteger('La duración', 52).safeParse('52').success).toBe(true);
+    expect(positiveInteger('La duración', 52).safeParse('53').success).toBe(false);
+  });
+
+  it('integerInRange no convierte el vacío en 0', () => {
+    expect(integerInRange('El stock', 0, 10).safeParse('').success).toBe(false);
+    expect(integerInRange('El stock', 0, 10).safeParse('1e1').success).toBe(false);
+    expect(integerInRange('El stock', 0, 10).parse('0')).toBe(0);
+  });
+});
+
+describe('birthDateSchema / isoDateSchema', () => {
+  it('rechaza nacimientos futuros o imposibles', () => {
+    expect(birthDateSchema().safeParse('2999-01-01').success).toBe(false);
+    expect(birthDateSchema().safeParse('1800-01-01').success).toBe(false);
+    expect(birthDateSchema().safeParse('2000-05-10').success).toBe(true);
+    expect(birthDateSchema().safeParse('').success).toBe(true);
+  });
+
+  it('atrapa años mal digitados', () => {
+    expect(isoDateSchema().safeParse('0202-01-01').success).toBe(false);
+    expect(isoDateSchema().safeParse('2024-01-01').success).toBe(true);
   });
 });
 

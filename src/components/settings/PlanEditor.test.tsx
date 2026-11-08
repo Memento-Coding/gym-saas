@@ -15,6 +15,7 @@ import userEvent from '@testing-library/user-event';
 
 import { PlanEditor } from './PlanEditor';
 import type { CostsConfig, MembershipPlan } from '@/types/membership';
+import type { Student } from '@/types/student';
 
 function makeCosts(overrides?: Partial<CostsConfig>): CostsConfig {
   return {
@@ -34,8 +35,9 @@ beforeEach(() => {
 function renderEditor(
   onSave = vi.fn().mockResolvedValue(undefined),
   costs: CostsConfig | null = makeCosts(),
+  students: Pick<Student, 'planId' | 'planName' | 'status'>[] | undefined = [],
 ) {
-  render(<PlanEditor costs={costs} onSave={onSave} />);
+  render(<PlanEditor costs={costs} onSave={onSave} students={students} />);
   return { onSave };
 }
 
@@ -128,5 +130,94 @@ describe('PlanEditor — guardado', () => {
     );
     expect(mensual?.price).toBe(120000);
     expect(typeof mensual?.price).toBe('number');
+  });
+});
+
+// =============================================================================
+// Crear y eliminar planes
+// =============================================================================
+
+describe('PlanEditor — crear planes', () => {
+  async function fillNewPlan(user: ReturnType<typeof userEvent.setup>, name: string, price: string) {
+    await user.click(screen.getByRole('button', { name: /agregar plan/i }));
+    await user.type(screen.getByLabelText(/nombre del nuevo plan/i), name);
+    if (price) await user.type(screen.getByLabelText(/precio del nuevo plan/i), price);
+    await user.click(screen.getByRole('button', { name: /^agregar$/i }));
+  }
+
+  it('agrega un plan y lo persiste al guardar', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderEditor();
+
+    await fillNewPlan(user, 'Boxeo', '90000');
+    await user.click(screen.getByRole('button', { name: /guardar planes/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].memberships.at(-1)).toMatchObject({ name: 'Boxeo', price: 90000 });
+  });
+
+  it('rechaza precio vacío y nombre usado en el otro grupo', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await fillNewPlan(user, 'Boxeo', '');
+    expect(await screen.findByText(/el precio es obligatorio/i)).toBeInTheDocument();
+
+    const name = screen.getByLabelText(/nombre del nuevo plan/i);
+    await user.clear(name);
+    await user.type(name, 'personal training');
+    await user.type(screen.getByLabelText(/precio del nuevo plan/i), '1000');
+    await user.click(screen.getByRole('button', { name: /^agregar$/i }));
+    expect(await screen.findByText(/ya existe un plan con ese nombre/i)).toBeInTheDocument();
+  });
+});
+
+describe('PlanEditor — eliminar planes', () => {
+  const eliminar = (name: string) =>
+    screen.getByRole('button', { name: new RegExp(`eliminar plan ${name}`, 'i') });
+
+  it('elimina un plan sin estudiantes y lo persiste al guardar', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderEditor();
+
+    await user.click(eliminar('Trimestral'));
+    await user.click(screen.getByRole('button', { name: /guardar planes/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].memberships.map((p: MembershipPlan) => p.id)).toEqual(['plan-mensual']);
+  });
+
+  it('bloquea eliminar por planId o por el nombre en registros antiguos', () => {
+    renderEditor(undefined, undefined, [
+      { planId: 'plan-mensual', planName: 'Otro', status: 'active' },
+      { planId: '', planName: 'Trimestral', status: 'frozen' },
+    ]);
+    expect(eliminar('Mensualidad')).toBeDisabled();
+    expect(eliminar('Trimestral')).toBeDisabled();
+    expect(screen.getAllByText(/en uso por 1 estudiante/i)).toHaveLength(2);
+  });
+
+  it('un estudiante inactivo no bloquea', () => {
+    renderEditor(undefined, undefined, [{ planId: 'plan-mensual', planName: 'Mensualidad', status: 'inactive' }]);
+    expect(eliminar('Mensualidad')).toBeEnabled();
+  });
+
+  it('renombrar sin guardar no esconde a sus estudiantes', () => {
+    renderEditor(undefined, undefined, [{ planId: '', planName: 'Trimestral', status: 'active' }]);
+    fireEvent.change(screen.getByLabelText(/nombre del plan plan-trimestral/i), { target: { value: 'Nuevo' } });
+    expect(eliminar('Nuevo')).toBeDisabled();
+  });
+
+  it('sin datos de estudiantes no permite eliminar', () => {
+    render(<PlanEditor costs={makeCosts()} onSave={vi.fn()} />);
+    expect(eliminar('Trimestral')).toBeDisabled();
+  });
+
+  it('no permite eliminar el último plan', () => {
+    renderEditor(undefined, {
+      memberships: [{ id: 'unico', name: 'Unico', price: 1000 }],
+      personalized: [],
+    });
+    expect(eliminar('Unico')).toBeDisabled();
   });
 });

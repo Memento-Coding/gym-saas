@@ -31,6 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import { CreditPlanEditor } from '@/components/sales/CreditPlanEditor';
 import { computeSaleTotal } from '@/services/SaleService';
+import { positiveInteger } from '@/utils/validation';
 import type { CreateSaleInput, SaleLineInput, CreditPlanInput } from '@/services/SaleService';
 import type { InventoryItem } from '@/types/inventory';
 import type { PaymentMethod } from '@/types/payment';
@@ -41,6 +42,8 @@ const SALE_TYPES = [
   { value: 'cash', label: 'Contado' },
   { value: 'credit', label: 'Crédito (cuotas)' },
 ] as const;
+
+const MAX_QUANTITY = 100_000;
 
 /** Línea del formulario (antes de ensamblar CreateSaleInput). */
 interface FormLine {
@@ -118,6 +121,10 @@ export function SaleForm({ inventory, onSubmit, submitting = false }: SaleFormPr
       setError('El nombre del cliente es obligatorio.');
       return;
     }
+    if (clientName.trim().length > 100) {
+      setError('El nombre del cliente no puede superar 100 caracteres.');
+      return;
+    }
 
     // Validar líneas: ítem seleccionado y cantidad entera > 0.
     const saleLines: SaleLineInput[] = [];
@@ -126,8 +133,12 @@ export function SaleForm({ inventory, onSubmit, submitting = false }: SaleFormPr
         setError('Selecciona un ítem en todas las líneas.');
         return;
       }
-      if (!Number.isInteger(r.qty) || r.qty <= 0) {
+      if (!positiveInteger('La cantidad', MAX_QUANTITY).safeParse(r.line.quantity).success) {
         setError(`La cantidad de "${r.item.name}" debe ser un entero mayor a 0.`);
+        return;
+      }
+      if (r.item.kind === 'product' && r.item.stock != null && r.qty > r.item.stock) {
+        setError(`Solo hay ${r.item.stock} unidades de "${r.item.name}".`);
         return;
       }
       saleLines.push({

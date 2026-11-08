@@ -14,13 +14,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
 import { BackupService } from '@/services/BackupService';
+import { COSTS_KEY, MembershipService } from '@/services/MembershipService';
 import type { StorageService } from '@/services/storage/StorageService';
 import type { BrandingConfig, FormFieldConfig } from '@/types/settings';
 import type { CostsConfig } from '@/types/membership';
 
 /** Storage keys */
 const BRANDING_KEY = 'branding';
-const COSTS_KEY = 'costs';
 const FORM_FIELDS_KEY = 'formFields';
 
 /** Keys to preserve during reset */
@@ -84,7 +84,7 @@ export function useSettings(): UseSettingsReturn {
     try {
       const [brandingData, costsData, fieldsData] = await Promise.all([
         storage.get<BrandingConfig>(BRANDING_KEY),
-        storage.get<CostsConfig>(COSTS_KEY),
+        new MembershipService(storage).getCostsConfig(),
         storage.get<FormFieldConfig[]>(FORM_FIELDS_KEY),
       ]);
 

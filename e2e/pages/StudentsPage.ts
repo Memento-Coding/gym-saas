@@ -94,7 +94,7 @@ export class StudentsPage {
   }
 
   async seleccionarEnCombo(nombreOpcion: string | RegExp) {
-    await this.dialog.getByRole('combobox').first().click();
+    await this.dialog.getByRole('combobox', { name: /^plan/i }).click();
     await this.page.getByRole('option', { name: nombreOpcion }).click();
   }
 
@@ -107,7 +107,7 @@ export class StudentsPage {
   }) {
     await this.llenarCampo(/nombres/i, datos.nombres);
     await this.llenarCampo(/apellidos/i, datos.apellidos);
-    await this.llenarCampo(/documento/i, datos.documento);
+    await this.llenarCampo(/^documento/i, datos.documento);
     await this.seleccionarEnCombo(datos.plan);
     await this.llenarCampo(/vencimiento/i, datos.vencimiento);
     await this.btnGuardar.click();

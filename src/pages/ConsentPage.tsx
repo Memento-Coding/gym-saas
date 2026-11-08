@@ -36,6 +36,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { Student } from '@/types/student';
+import { formatDocument } from '@/utils/validation';
 
 export function ConsentPage() {
   const {
@@ -190,7 +191,7 @@ export function ConsentPage() {
                       {student.firstName} {student.lastName}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {student.documentId}
+                      {formatDocument(student.documentId, student.documentType)}
                       {student.isMinor && (
                         <Badge variant="outline" className="ml-2">
                           Menor

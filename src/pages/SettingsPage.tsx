@@ -22,6 +22,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { BrandingForm } from '@/components/settings/BrandingForm';
 import { PlanEditor } from '@/components/settings/PlanEditor';
 import { FormFieldConfigEditor } from '@/components/settings/FormFieldConfig';
+import { useStudents } from '@/hooks/useStudents';
 import { BackupManager } from '@/components/settings/BackupManager';
 import { getStorageService } from '@/services/storage';
 import type { CommunicationConfig, ChannelConfig } from '@/types/communication';
@@ -48,6 +49,7 @@ export function SettingsPage() {
     importBackup,
     resetData,
   } = useSettings();
+  const { students, isLoading: studentsLoading, error: studentsError } = useStudents();
 
   // Communication channel state (simple panel)
   const [channels, setChannels] = useState<ChannelConfig[]>([]);
@@ -148,7 +150,11 @@ export function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="plans">
-          <PlanEditor costs={costs} onSave={saveCosts} />
+          <PlanEditor
+            costs={costs}
+            onSave={saveCosts}
+            students={studentsLoading || studentsError ? undefined : students}
+          />
         </TabsContent>
 
         <TabsContent value="form">

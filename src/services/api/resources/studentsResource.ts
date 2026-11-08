@@ -33,6 +33,7 @@ const DIFF_FIELDS: (keyof Student)[] = [
   'firstName',
   'lastName',
   'documentId',
+  'documentType',
   'phone',
   'email',
   'dateOfBirth',
@@ -46,6 +47,7 @@ const DIFF_FIELDS: (keyof Student)[] = [
   'isMinor',
   'guardianName',
   'guardianDocument',
+  'guardianDocumentType',
   'medicalNotes',
   'photo',
   'status',
@@ -54,7 +56,10 @@ const DIFF_FIELDS: (keyof Student)[] = [
 
 /** true si dos estudiantes difieren en algún campo gestionado por la API. */
 function hasChanges(next: Student, prev: Student): boolean {
-  return DIFF_FIELDS.some((field) => next[field] !== prev[field]);
+  return (
+    DIFF_FIELDS.some((field) => next[field] !== prev[field]) ||
+    JSON.stringify(next.customFields ?? {}) !== JSON.stringify(prev.customFields ?? {})
+  );
 }
 
 export class StudentsResource implements ResourceHandler {

@@ -57,6 +57,13 @@ porcentajes y días de congelamiento.
 5. **Porcentajes** acotados a `[0, 100]` vía `percentage`.
 6. **Validación dual.** El front usa el schema del catálogo; el service
    (`Back`) revalida el mismo invariante antes de escribir en `StorageService`.
+7. **Pesos colombianos.** Los montos en COP usan `copAmount`: enteros, sin
+   centavos ni separadores de miles.
+8. **Documentos colombianos.** Tipo (`DOCUMENT_TYPES`: CC, TI, RC, CE, PA, PPT,
+   PEP) y número se validan juntos con `documentFormatError`. CC solo para
+   adultos; TI y RC solo para menores.
+9. **Teléfonos colombianos.** `phoneSchema` guarda 10 dígitos: celular (inicia
+   en 3) o fijo (inicia en 60), aceptando `+57` y separadores al digitar.
 
 **UI:** `inputMode="decimal"` o `"numeric"`, `step`, `min` y `max` en el
 `<Input>` de shadcn, más el schema Zod como autoridad real.
