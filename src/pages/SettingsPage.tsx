@@ -103,9 +103,9 @@ export function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Ajustes</h1>
-        <p className="text-muted-foreground">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
+        <p className="text-sm text-muted-foreground">
           Configuración general del sistema, marca y datos.
         </p>
       </div>

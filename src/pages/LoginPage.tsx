@@ -83,22 +83,40 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden">
+      {/* Subtle gradient background */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99,102,241,0.12) 0%, transparent 60%), ' +
+            'radial-gradient(ellipse 60% 40% at 80% 100%, rgba(249,115,22,0.06) 0%, transparent 50%)',
+        }}
+      />
+
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={springTransition}
         className="w-full max-w-sm"
       >
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">GymOps</CardTitle>
-            <CardDescription>Inicia sesión en tu cuenta</CardDescription>
+        {/* Brand mark above card */}
+        <div className="flex flex-col items-center gap-3 mb-6">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-primary text-white shadow-md">
+            <span className="text-xl font-bold leading-none">G</span>
+          </div>
+          <h1 className="text-xl font-semibold tracking-tight">GymOps</h1>
+        </div>
+
+        <Card className="shadow-xl border-black/[0.06]">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-lg font-semibold">Iniciar sesión</CardTitle>
+            <CardDescription className="text-sm">Ingresa tu correo y contraseña</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -107,11 +125,20 @@ export function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
+                  className="h-10 rounded-xl"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="password">Contraseña</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">Contraseña</Label>
+                  <Link
+                    to="/recuperar-password"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
                 <Input
                   id="password"
                   type="password"
@@ -120,20 +147,27 @@ export function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
+                  className="h-10 rounded-xl"
                 />
               </div>
 
               {error && (
-                <p className="text-sm text-destructive">{error}</p>
+                <div className="rounded-xl bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
+                  {error}
+                </div>
               )}
 
-              <Button type="submit" disabled={isSubmitting} className="w-full">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="pressable w-full h-10 rounded-xl font-medium mt-1"
+              >
                 {isSubmitting ? 'Iniciando sesión...' : 'Iniciar sesión'}
               </Button>
 
-              <div className="relative flex items-center justify-center">
+              <div className="relative flex items-center justify-center my-1">
                 <span className="absolute inset-x-0 top-1/2 h-px bg-border" />
-                <span className="relative bg-card px-2 text-xs text-muted-foreground">
+                <span className="relative bg-card px-2.5 text-xs text-muted-foreground">
                   o continúa con
                 </span>
               </div>
@@ -143,7 +177,7 @@ export function LoginPage() {
                 variant="outline"
                 disabled={isGoogleLoading}
                 onClick={handleGoogleLogin}
-                className="w-full"
+                className="pressable w-full h-10 rounded-xl font-medium"
               >
                 <svg className="mr-2 size-4" viewBox="0 0 24 24">
                   <path
@@ -163,26 +197,24 @@ export function LoginPage() {
                     fill="#EA4335"
                   />
                 </svg>
-                {isGoogleLoading ? 'Conectando...' : 'Google'}
+                {isGoogleLoading ? 'Conectando...' : 'Continuar con Google'}
               </Button>
 
-              <div className="flex flex-col items-center gap-2 text-sm">
-                <Link
-                  to="/recuperar-password"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  ¿Olvidaste tu contraseña?
+              <p className="text-center text-sm text-muted-foreground pt-1">
+                ¿No tienes cuenta?{' '}
+                <Link to="/registro" className="text-primary font-medium hover:underline">
+                  Regístrate
                 </Link>
-                <Link
-                  to="/registro"
-                  className="text-primary hover:underline"
-                >
-                  ¿No tienes cuenta? Regístrate
-                </Link>
-              </div>
+              </p>
             </form>
           </CardContent>
         </Card>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          <Link to="/privacidad" className="hover:underline">Privacidad</Link>
+          {' · '}
+          <Link to="/terminos" className="hover:underline">Condiciones del servicio</Link>
+        </p>
       </motion.div>
     </div>
   );

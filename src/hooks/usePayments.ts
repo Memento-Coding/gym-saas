@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
 import {
+  computeSubscriptionEndDate,
   PaymentService,
   type PaymentInput,
   type RegisterPaymentResult,
@@ -23,6 +24,7 @@ import {
 import type { Payment } from '@/types/payment';
 import { isApiMode } from '@/config/env';
 import { createApiPayment } from '@/services/api';
+import { buildCreditPlan } from '@/services/SaleService';
 
 interface RegisterOptions {
   /** Datos del cliente para el comprobante (Req 14.1). */
@@ -125,7 +127,33 @@ export function usePayments(): UsePaymentsReturn {
             discount: input.discount ?? 0,
             discountReason: input.discountReason ?? '',
           };
-          const created = await createApiPayment(draft, input.studentId);
+          const netAmount = input.amount - (input.discount ?? 0);
+          const plan =
+            input.status === 'credit'
+              ? buildCreditPlan(netAmount, input.initialPayment ?? 0, {
+                  type: input.creditPlan?.type ?? 'single',
+                })
+              : undefined;
+          const newEndDate = options.currentSubscriptionEndDate
+            ? computeSubscriptionEndDate(
+                options.currentSubscriptionEndDate,
+                input.date,
+                input.status,
+                options.plan,
+              )
+            : undefined;
+          const created = await createApiPayment(draft, input.studentId, {
+            extensionDate:
+              newEndDate !== options.currentSubscriptionEndDate ? newEndDate : undefined,
+            credit: plan && {
+              initialDown: input.initialPayment ?? 0,
+              installments: plan.installments.map(({ number, amount, dueDate }) => ({
+                number,
+                amount,
+                dueDate,
+              })),
+            },
+          });
           const result: ServiceResult<RegisterPaymentResult> = {
             success: true,
             data: { payment: created, receiptNo: created.receiptNo ?? '' },

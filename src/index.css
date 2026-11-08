@@ -177,7 +177,7 @@
   --chart-3: var(--color-success-500);
   --chart-4: var(--color-warning-500);
   --chart-5: var(--color-info-500);
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   --sidebar: var(--color-secondary-50);
   --sidebar-foreground: var(--color-secondary-700);
   --sidebar-primary: var(--color-primary-600);
@@ -257,11 +257,13 @@
   --space-24: 6rem;
 
   /* ===== Shadows ===== */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.09), 0 4px 8px -4px rgb(0 0 0 / 0.05);
+  --shadow-xl: 0 24px 48px -8px rgb(0 0 0 / 0.12), 0 8px 16px -8px rgb(0 0 0 / 0.06);
+  /* Elevated card shadow with colored undertone */
+  --shadow-card: 0 2px 8px -1px rgb(99 102 241 / 0.07), 0 1px 3px -1px rgb(0 0 0 / 0.06);
 
   /* ===== Layout ===== */
   --container-sm: 640px;
@@ -329,14 +331,14 @@
 
   /* ===== Component Tokens — Cards ===== */
   --card-bg: #ffffff;
-  --card-border: 1px solid var(--color-secondary-200);
-  --card-radius: var(--radius-lg);
-  --card-shadow: var(--shadow-sm);
+  --card-border: 1px solid rgba(0, 0, 0, 0.06);
+  --card-radius: var(--radius-xl);
+  --card-shadow: var(--shadow-card);
   --card-shadow-hover: var(--shadow-md);
   --card-padding: var(--space-5);
   --card-padding-compact: var(--space-3);
   --card-header-gap: var(--space-4);
-  --card-transition: box-shadow 150ms ease, transform 150ms ease;
+  --card-transition: box-shadow 200ms ease, transform 200ms ease;
 
   /* ===== Component Tokens — Tables ===== */
   --table-header-bg: var(--color-secondary-50);
@@ -457,11 +459,12 @@
   --sidebar-ring: var(--color-primary-500);
 
   /* Shadows — Dark */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.35), 0 1px 2px -1px rgb(0 0 0 / 0.28);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.45), 0 4px 8px -4px rgb(0 0 0 / 0.32);
+  --shadow-xl: 0 24px 48px -8px rgb(0 0 0 / 0.5), 0 8px 16px -8px rgb(0 0 0 / 0.36);
+  --shadow-card: 0 2px 8px -1px rgb(0 0 0 / 0.4), 0 1px 3px -1px rgb(0 0 0 / 0.3);
 
   /* Component overrides — Dark */
   --card-bg: var(--color-secondary-100);
@@ -557,23 +560,28 @@
    ========================================================================== */
 
 .sidebar-material {
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  background: rgba(248, 250, 252, 0.8);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  background: rgba(248, 250, 252, 0.85);
+  /* Bright top-edge catches the light, subtle right border separates from content */
+  border-right: 1px solid rgba(255, 255, 255, 0.7);
 }
 
 .mobile-header-material {
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(255, 255, 255, 0.78);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="dark"] .sidebar-material {
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.85);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="dark"] .mobile-header-material {
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(15, 23, 42, 0.78);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* ==========================================================================
@@ -616,4 +624,83 @@
     background: var(--color-secondary-50);
     border-right: 2px solid var(--color-secondary-700);
   }
+}
+
+/* ==========================================================================
+   Interactive / motion utilities
+   ========================================================================== */
+
+/* Pressable — instant scale-down on pointer-down, like a physical button */
+.pressable {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* Card interactive — lifts on hover with subtle shadow upgrade */
+.card-interactive {
+  transition: box-shadow 200ms ease, transform 200ms ease;
+  cursor: pointer;
+}
+.card-interactive:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.card-interactive:active {
+  transform: translateY(0px);
+  box-shadow: var(--shadow-sm);
+  transition-duration: 80ms;
+}
+
+/* Nav item — smooth color transition, responds on press */
+.nav-item {
+  transition: background-color 150ms ease, color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-item:active {
+  transform: scale(0.98);
+  transition-duration: 80ms;
+}
+
+/* Page enter animation */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* Skeleton shimmer for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-secondary-100) 25%,
+    var(--color-secondary-50) 50%,
+    var(--color-secondary-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Metric value — display number with optical sizing */
+.metric-value {
+  font-variant-numeric: tabular-nums;
+  font-optical-sizing: auto;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }

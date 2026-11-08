@@ -218,9 +218,9 @@ export function CourtesiesPage() {
                             </Badge>
                           </div>
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(bonus.startDate), "d MMM yyyy", { locale: es })}
+                            {format(new Date(`${bonus.startDate.slice(0, 10)}T00:00:00`), "d MMM yyyy", { locale: es })}
                             {' → '}
-                            {format(new Date(bonus.endDate), "d MMM yyyy", { locale: es })}
+                            {format(new Date(`${bonus.endDate.slice(0, 10)}T00:00:00`), "d MMM yyyy", { locale: es })}
                             {' · '}
                             {bonus.weeks} semana{bonus.weeks !== 1 ? 's' : ''}
                           </span>

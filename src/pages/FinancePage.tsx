@@ -25,6 +25,8 @@ import {
 import { FinanceOverview } from '@/components/finance/FinanceOverview';
 import { FinanceMovements } from '@/components/finance/FinanceMovements';
 import { TransferForm } from '@/components/finance/TransferForm';
+import { SalesTab } from '@/components/sales/SalesTab';
+import { InventoryTab } from '@/components/inventory/InventoryTab';
 import { useFinance } from '@/hooks/useFinance';
 import { FinanceService } from '@/services/FinanceService';
 
@@ -46,6 +48,7 @@ export function FinancePage() {
     filter,
     setFilter,
     transfer,
+    refreshData,
   } = useFinance();
 
   // Agrupa los movimientos filtrados por categoría para cada sub-pestaña.
@@ -62,8 +65,8 @@ export function FinancePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Finanzas</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight">Finanzas</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           Movimientos financieros, traslados y resumen por período.
         </p>
       </div>
@@ -81,7 +84,7 @@ export function FinancePage() {
       <FinanceOverview summary={summary} loading={loading} />
 
       {/* Formulario de traslados */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Registrar traslado</CardTitle>
           <CardDescription>
@@ -95,10 +98,10 @@ export function FinancePage() {
       </Card>
 
       {/* Sub-pestañas de movimientos (Req 7.2) */}
-      <Tabs defaultValue={FINANCE_TABS[0].value}>
-        <TabsList className="flex-wrap">
+      <Tabs defaultValue={FINANCE_TABS[0].value} className="space-y-4">
+        <TabsList className="flex-wrap gap-1">
           {FINANCE_TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
+            <TabsTrigger key={tab.value} value={tab.value} className="rounded-lg">
               {tab.label}
             </TabsTrigger>
           ))}
@@ -114,13 +117,12 @@ export function FinancePage() {
           return (
             <TabsContent key={tab.value} value={tab.value} className="mt-4">
               <div className="flex flex-col gap-4">
-                {/* Nota: la integración con Pagos, Ventas, Inventario y Cartera
-                    (Tracks B/C) se conecta en la Fase 2. Por ahora se muestran
-                    los movimientos existentes con esa categoría. */}
+                {tab.value === 'ventas' && <SalesTab onSold={refreshData} />}
+                {tab.value === 'inventario' && <InventoryTab />}
+
                 {tabMovements.length === 0 && !loading ? (
                   <p className="text-sm text-muted-foreground">
-                    Aún no hay movimientos en «{tab.label}». Esta sección se
-                    conectará con su módulo correspondiente en la Fase 2.
+                    Aún no hay movimientos en «{tab.label}».
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">

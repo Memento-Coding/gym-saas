@@ -50,11 +50,21 @@ const DIFF_FIELDS: (keyof Student)[] = [
   'photo',
   'status',
   'telegramChatId',
+  'freezeReason',
+  'freezeDate',
+  'freezeEndDate',
 ];
 
 /** true si dos estudiantes difieren en algún campo gestionado por la API. */
 function hasChanges(next: Student, prev: Student): boolean {
-  return DIFF_FIELDS.some((field) => next[field] !== prev[field]);
+  return (
+    DIFF_FIELDS.some((field) => next[field] !== prev[field]) ||
+    // Campo a campo: la API puede devolver las claves de consent en otro orden.
+    next.consent.signature !== prev.consent.signature ||
+    next.consent.signed !== prev.consent.signed ||
+    next.consent.signedVersion !== prev.consent.signedVersion ||
+    next.consent.signedDate !== prev.consent.signedDate
+  );
 }
 
 export class StudentsResource implements ResourceHandler {

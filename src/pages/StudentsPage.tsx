@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 import type { Student } from '@/types/student';
 import { studentService, type StudentFilterCriteria } from '@/services/StudentService';
@@ -47,6 +48,7 @@ import {
 const MotionButton = motion.create(Button);
 
 export function StudentsPage() {
+  const navigate = useNavigate();
   const { students, isLoading, create, update, remove, freeze, unfreeze } =
     useStudents();
 
@@ -152,12 +154,17 @@ export function StudentsPage() {
       {/* Cabecera */}
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Estudiantes</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">Estudiantes</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Gestión de estudiantes del gimnasio.
           </p>
         </div>
-        <MotionButton whileTap={{ scale: 0.97 }} onClick={openCreate}>
+        <MotionButton
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: 'spring', duration: 0.2, bounce: 0 }}
+          onClick={openCreate}
+          className="shrink-0"
+        >
           <Plus /> Nuevo Estudiante
         </MotionButton>
       </header>
@@ -193,6 +200,7 @@ export function StudentsPage() {
         student={selectedFresh}
         open={profileOpen}
         onOpenChange={setProfileOpen}
+        onPayments={(s) => navigate(`/estudiantes/${encodeURIComponent(s.id)}`)}
         onEdit={openEdit}
         onFreeze={handleFreeze}
         onUnfreeze={handleUnfreeze}

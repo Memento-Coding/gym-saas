@@ -13,7 +13,7 @@ export interface FormFieldConfig {
   id: string;
   name: string;
   label: string;
-  type: 'text' | 'number' | 'date' | 'select';
+  type: 'text' | 'number' | 'date' | 'select' | 'email' | 'tel';
   required: boolean;
   options?: string[];
   isBuiltIn: boolean;

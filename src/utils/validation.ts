@@ -132,7 +132,51 @@ export async function isDocumentUnique(
 }
 
 // =============================================================================
-// 2. Montos monetarios (no negativos)
+// 2. Teléfono y Email
+// =============================================================================
+
+/**
+ * Regex de teléfono: solo dígitos, longitud 7–15 (E.164 sin prefijo +).
+ * Acepta teléfonos locales colombianos (7 dígitos) y móviles (10 dígitos)
+ * así como números internacionales hasta 15 dígitos.
+ */
+const PHONE_RE = /^\d{7,15}$/;
+
+/**
+ * Schema de teléfono: solo dígitos, longitud 7–15.
+ * Rechaza letras, espacios y caracteres especiales.
+ */
+export function phoneSchema(label = 'El teléfono', required = false) {
+  const base = z
+    .string()
+    .trim()
+    .regex(PHONE_RE, { message: `${label} solo puede contener números (7–15 dígitos).` });
+  return required
+    ? base.min(1, { message: messages.required(label) })
+    : z.union([z.literal(''), base]).optional();
+}
+
+/** Predicado puro: ¿el teléfono tiene formato válido? */
+export function isValidPhone(value: string): boolean {
+  return PHONE_RE.test(value.trim());
+}
+
+/**
+ * Schema de email con validación de formato estándar.
+ * Campo opcional por defecto.
+ */
+export function emailSchema(label = 'El email', required = false) {
+  const base = z
+    .string()
+    .trim()
+    .email({ message: `${label} no es una dirección válida.` });
+  return required
+    ? base.min(1, { message: messages.required(label) })
+    : z.union([z.literal(''), base]).optional();
+}
+
+// =============================================================================
+// 3. Montos monetarios (no negativos)
 // =============================================================================
 
 /**
@@ -156,7 +200,7 @@ export function isValidAmount(value: number): boolean {
 }
 
 // =============================================================================
-// 3. Enteros positivos y porcentajes (con límites)
+// 4. Enteros positivos y porcentajes (con límites)
 // =============================================================================
 
 /**
@@ -187,7 +231,7 @@ export function percentage(label = 'El porcentaje') {
 }
 
 // =============================================================================
-// 4. Fechas (helpers UTC + integridad cronológica + cálculo de vencimiento)
+// 5. Fechas (helpers UTC + integridad cronológica + cálculo de vencimiento)
 // =============================================================================
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -305,7 +349,7 @@ export function computeSubscriptionEndDate(
 }
 
 // =============================================================================
-// 5. Selects (validación contra el array de datos de origen)
+// 6. Selects (validación contra el array de datos de origen)
 // =============================================================================
 
 /**

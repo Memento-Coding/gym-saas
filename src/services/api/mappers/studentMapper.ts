@@ -45,8 +45,9 @@ export interface ApiStudent {
   firstRegistrationDate?: string;
   createdAt?: string;
   freezeReason?: string;
-  freezeDate?: string;
+  freezeStart?: string;
   freezeEnd?: string;
+  consent?: Student['consent'];
   telegramChatId?: string;
   customFields?: Record<string, unknown>;
   [key: string]: unknown;
@@ -138,9 +139,11 @@ export function apiToStudent(api: ApiStudent, prev?: Student): Student {
     firstRegistrationDate:
       api.firstRegistrationDate ?? api.createdAt ?? base.firstRegistrationDate,
     status: toFrontStatus(api.status),
-    freezeReason: api.freezeReason ?? base.freezeReason,
-    freezeDate: api.freezeDate ?? base.freezeDate,
-    freezeEndDate: api.freezeEnd ?? base.freezeEndDate,
+    // Sin fallback a `base`: al descongelar la API deja de devolverlos.
+    freezeReason: api.freezeReason || undefined,
+    freezeDate: api.freezeStart || undefined,
+    freezeEndDate: api.freezeEnd || undefined,
+    consent: api.consent ?? base.consent,
     telegramChatId: api.telegramChatId ?? base.telegramChatId,
     customFields: api.customFields ?? base.customFields,
   };
@@ -175,6 +178,11 @@ export function studentToApi(student: Student): Record<string, unknown> {
     emergencyContact,
     medicalNotes: student.medicalNotes,
     photo: student.photo,
+    // Vacíos (no undefined) para que al descongelar se borren en la API.
+    freezeReason: student.freezeReason ?? '',
+    freezeStart: student.freezeDate ?? '',
+    freezeEnd: student.freezeEndDate ?? '',
+    consent: student.consent,
     telegramChatId: student.telegramChatId,
     customFields: student.customFields,
   };
