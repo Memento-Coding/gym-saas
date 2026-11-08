@@ -37,3 +37,6 @@ test-results/
 #infra
 gym-saas-infra
 graphify-out/
+
+# Worktrees temporales de sesiones de Claude
+.claude/worktrees/
