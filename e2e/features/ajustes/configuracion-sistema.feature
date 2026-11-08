@@ -8,11 +8,11 @@ Característica: Configuración del sistema
   @smoke
   Escenario: Administrador accede a la configuración y ve todas las secciones disponibles
     Cuando accede al módulo de ajustes
-    Entonces debería ver la pestaña de marca
-    Y debería ver la pestaña de planes
-    Y debería ver la pestaña de formulario
-    Y debería ver la pestaña de backup
-    Y debería ver la pestaña de comunicación
+    Entonces debería ver la sección de marca
+    Y debería ver la sección de planes
+    Y debería ver la sección de formulario
+    Y debería ver la sección de backup
+    Y debería ver la sección de comunicación
 
   @critico
   Escenario: Administrador configura el nombre y eslogan del gimnasio
@@ -32,30 +32,30 @@ Característica: Configuración del sistema
   Escenario: Los campos personalizados existentes aparecen en la configuración del formulario
     Dado que existe el campo personalizado "Nivel Cinturón E2E" en el formulario
     Cuando accede al módulo de ajustes
-    Y navega a la pestaña de formulario
+    Y entra a la sección de formulario
     Entonces debería ver el campo "Nivel Cinturón E2E" en la lista
 
   @regresion
   Escenario: Administrador elimina un campo personalizado tras confirmar
     Dado que existe el campo personalizado "Campo a Borrar E2E" en el formulario
     Cuando accede al módulo de ajustes
-    Y navega a la pestaña de formulario
+    Y entra a la sección de formulario
     Y elimina el campo "Campo a Borrar E2E"
     Entonces el campo "Campo a Borrar E2E" no debería aparecer en la lista
 
   @smoke
-  Escenario: Administrador verifica que el botón de exportar backup está disponible
+  Escenario: El backup del sistema se puede descargar
     Cuando accede al módulo de ajustes
-    Y navega a la pestaña de backup
-    Entonces debería ver el botón para descargar el backup
+    Y entra a la sección de backup
+    Entonces debería poder descargar el backup
 
   @critico
   Escenario: El reinicio del sistema requiere confirmación escribiendo REINICIAR
     Cuando accede al módulo de ajustes
-    Y navega a la pestaña de backup
-    Y abre el diálogo de reinicio del sistema
-    Entonces el botón de confirmar reinicio debería estar deshabilitado
-    Y al escribir "REINICIAR" el botón debería habilitarse
+    Y entra a la sección de backup
+    Y solicita el reinicio del sistema
+    Entonces no debería poder confirmar el reinicio
+    Y al escribir "REINICIAR" debería poder confirmar el reinicio
 
   @critico
   Escenario: El reinicio del sistema preserva la configuración de marca pero elimina los estudiantes
@@ -67,22 +67,50 @@ Característica: Configuración del sistema
     Y la lista de estudiantes debería estar vacía
 
   @regresion
-  Escenario: La pestaña de comunicación en ajustes muestra los canales configurables
+  Escenario: La sección de comunicación en ajustes muestra los canales configurables
     Dado que existe configuración de canales de comunicación en el sistema
     Cuando accede al módulo de ajustes
-    Y navega a la pestaña de comunicación en ajustes
+    Y entra a la sección de comunicación en ajustes
     Entonces debería ver los canales "Email", "Telegram" y "WhatsApp"
 
   @adversarial
   Esquema del escenario: El reinicio no se habilita con un texto de confirmación incorrecto
     Cuando accede al módulo de ajustes
-    Y navega a la pestaña de backup
-    Y abre el diálogo de reinicio del sistema
+    Y entra a la sección de backup
+    Y solicita el reinicio del sistema
     Y escribe "<texto>" como confirmación de reinicio
-    Entonces el botón de confirmar reinicio debería seguir deshabilitado
+    Entonces no debería poder confirmar el reinicio
 
     Ejemplos:
       | texto      |
       | reiniciar  |
       | REINICIA   |
       | BORRAR     |
+
+  @adversarial
+  Esquema del escenario: Un backup dañado no reemplaza los datos existentes
+    Dado que existe un estudiante y configuración de marca "Meraki E2E" en el sistema
+    Cuando accede al módulo de ajustes
+    Y entra a la sección de backup
+    Y importa un backup "<tipo>"
+    Entonces los datos del sistema deberían seguir intactos
+
+    Ejemplos:
+      | tipo                |
+      | que no es JSON      |
+      | con una lista       |
+      | vacío               |
+      | con datos inválidos |
+
+  @adversarial
+  Esquema del escenario: Un plan inválido no se agrega
+    Cuando accede al módulo de ajustes
+    Y entra a la sección de planes
+    Y intenta agregar el plan "<nombre>" con precio "<precio>"
+    Entonces no debería agregarse ningún plan
+
+    Ejemplos:
+      | nombre | precio |
+      |        | 50000  |
+      | Malo   | -1     |
+      | Malo   | abc    |

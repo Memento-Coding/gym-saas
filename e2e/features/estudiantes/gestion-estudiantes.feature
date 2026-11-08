@@ -133,6 +133,21 @@ Característica: Gestión de estudiantes
       | Viaje  | -5   |
       | Viaje  | abc  |
 
+  @critico
+  Escenario: Congelar una membresía la deja congelada y correr el vencimiento
+    Dado que existe el estudiante "Ana García" registrado
+    Cuando accede al módulo de estudiantes
+    Y intenta congelar a "Ana García" con motivo "Viaje" por "30" días
+    Entonces "Ana García" debería quedar congelada
+    Y el vencimiento de "Ana García" debería correrse 30 días
+
+  @regresion
+  Escenario: Eliminar un estudiante tras confirmar lo quita de la lista
+    Dado que existe el estudiante "Ana García" registrado
+    Cuando accede al módulo de estudiantes
+    Y elimina a "Ana García" confirmando la acción
+    Entonces no debería existir ningún estudiante guardado
+
   @adversarial
   Escenario: Cancelar la eliminación conserva al estudiante
     Dado que existe el estudiante "Ana García" registrado

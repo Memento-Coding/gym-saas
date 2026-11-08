@@ -21,7 +21,7 @@ Característica: Gestión de consentimientos
     Dado que el estudiante "Ana García" no ha firmado el consentimiento
     Cuando el administrador accede al módulo de consentimiento
     Entonces debería ver a "Ana García" en la lista de pendientes
-    Y debería ver el botón de firma disponible para ese estudiante
+    Y debería poder iniciar la firma de ese estudiante
 
   @regresion
   Escenario: No hay pendientes cuando todos los estudiantes han firmado la versión vigente
@@ -40,13 +40,13 @@ Característica: Gestión de consentimientos
   Escenario: Estudiante menor tiene la opción de diferir la firma
     Dado que el estudiante "Luis Pérez" es menor de edad y no ha firmado
     Cuando el administrador accede al módulo de consentimiento
-    Entonces debería ver el botón de diferir junto al botón de firma para ese estudiante
+    Entonces debería poder diferir la firma de ese estudiante
 
   @regresion
   Escenario: Administrador abre el formulario de edición del texto de consentimiento
     Dado que hay un estudiante registrado en el sistema
     Cuando accede al módulo de consentimiento
-    Y hace clic en el botón de editar
+    Y empieza a editar el texto del consentimiento
     Entonces debería ver el campo de texto para editar el consentimiento
 
   @critico
@@ -60,13 +60,13 @@ Característica: Gestión de consentimientos
   Escenario: Estudiante con firma previa tiene disponible la descarga del PDF
     Dado que el estudiante "Ana García" firmó en una versión anterior del consentimiento
     Cuando el administrador accede al módulo de consentimiento
-    Entonces debería ver el botón de descarga del PDF firmado
+    Entonces debería poder descargar el PDF firmado
 
   @adversarial
   Escenario: Una firma en blanco no se puede confirmar
     Dado que el estudiante "Ana García" no ha firmado el consentimiento
     Cuando el administrador accede al módulo de consentimiento
-    Y abre el diálogo de firma para "Ana García"
+    Y inicia la firma de "Ana García"
     Entonces no debería poder confirmar la firma
     Y el consentimiento de "Ana García" no debería quedar firmado
 

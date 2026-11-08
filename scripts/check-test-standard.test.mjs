@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkFeature, checkPages } from './check-test-standard.mjs';
+import { checkFeature, checkPages, checkSteps } from './check-test-standard.mjs';
 
 const valid = `# language: es
 @e2e @pagos
@@ -35,5 +35,15 @@ test('@fixme necesita explicación', () => {
 test('una página nueva sin feature falla', () => {
   assert.match(checkPages(['NuevaPage'], ['pagos']).join(), /NuevaPage/);
   assert.match(checkPages(['FinancePage'], ['pagos']).join(), /finanzas/);
-  assert.deepEqual(checkPages(['LoginPage'], []), []);
+  assert.match(checkPages(['LoginPage'], []).join(), /autenticacion/);
+});
+
+test('rechaza lenguaje de interfaz', () => {
+  assert.match(checkFeature(`${valid}\n    Y hace clic en guardar`, 'pagos').join(), /interfaz/);
+  assert.deepEqual(checkFeature(`${valid}\n    Y confirma con doble clic`, 'pagos'), []);
+});
+
+test('rechaza pasos que ignoran un dato del escenario', () => {
+  assert.equal(checkSteps('async ({}, _nombre: string) => {}').length, 1);
+  assert.equal(checkSteps('async ({}, nombre: string) => {}').length, 0);
 });

@@ -15,10 +15,12 @@ const PAGE_FEATURES = {
   CommunicationPage: 'comunicacion',
   ConsentPage: 'consentimiento',
   SettingsPage: 'ajustes',
+  DashboardPage: 'dashboard',
+  LoginPage: 'autenticacion',
+  RegisterPage: 'autenticacion',
+  ForgotPasswordPage: 'autenticacion',
+  LegalPages: 'legal',
 };
-
-// Deuda visible: reducir esta lista, nunca ampliarla sin acordarlo.
-const PAGE_DEBT = new Set(['DashboardPage', 'LoginPage', 'RegisterPage', 'ForgotPasswordPage', 'LegalPages']);
 
 const REQUIRED_TAGS = ['@smoke', '@critico', '@adversarial'];
 
@@ -37,6 +39,9 @@ export function checkFeature(text, folder) {
   const date = text.match(/\b20\d{2}-\d{2}-\d{2}\b/);
   if (date) errors.push(`fecha literal ${date[0]}: usa fechas relativas a hoy`);
 
+  const jargon = text.match(/\b(hace clic|botón|pestaña|diálogo|canvas)\b/i);
+  if (jargon) errors.push(`"${jargon[0]}": describe el negocio, no la interfaz`);
+
   const lines = text.split('\n');
   lines.forEach((line, i) => {
     if (/^\s*@.*@fixme\b|^\s*@fixme\b/.test(line) && !lines[i - 1]?.trim().startsWith('#')) {
@@ -46,11 +51,15 @@ export function checkFeature(text, folder) {
   return errors;
 }
 
+/** Un parámetro con _ es un dato del escenario que el paso ignora. */
+export function checkSteps(source) {
+  return [...source.matchAll(/\b_(\w+): (?:string|number)/g)].map((m) => `parámetro ignorado: _${m[1]}`);
+}
+
 /** Devuelve las páginas sin feature, sin mapeo o con deuda ya saldada. */
 export function checkPages(pages, featureFolders) {
   const errors = [];
   for (const page of pages) {
-    if (PAGE_DEBT.has(page)) continue;
     const folder = PAGE_FEATURES[page];
     if (!folder) errors.push(`${page}: página nueva sin feature (agrégala a PAGE_FEATURES)`);
     else if (!featureFolders.includes(folder)) errors.push(`${page}: falta e2e/features/${folder}/`);
@@ -68,6 +77,11 @@ function main() {
       for (const e of checkFeature(readFileSync(path, 'utf8'), folder)) errors.push(`${folder}/${file}: ${e}`);
     }
   }
+  const stepsDir = join(ROOT, 'e2e/step-definitions');
+  for (const file of readdirSync(stepsDir).filter((f) => f.endsWith('.steps.ts'))) {
+    for (const e of checkSteps(readFileSync(join(stepsDir, file), 'utf8'))) errors.push(`${file}: ${e}`);
+  }
+
   const pagesDir = join(ROOT, 'src/pages');
   const pages = existsSync(pagesDir)
     ? readdirSync(pagesDir).filter((f) => f.endsWith('.tsx') && !f.includes('.test.')).map((f) => basename(f, '.tsx'))
