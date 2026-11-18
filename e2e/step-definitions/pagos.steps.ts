@@ -76,6 +76,15 @@ Then('debería existir un ingreso por el valor neto del pago', async () => {
   ]);
 });
 
+When('escribe el descuento {string} sin confirmar', async ({}, descuento: string) => {
+  await pagos.elegirPrimerPlan();
+  await pagos.escribirDescuento(descuento);
+});
+
+Then('el campo de descuento debería mostrar {string}', async ({}, valor: string) => {
+  await expect(pagos.dialog.getByLabel(/descuento \(monto\)/i)).toHaveValue(valor);
+});
+
 Then('el formulario de pago debería seguir abierto mostrando un error', async () => {
   await expect(pagos.dialog).toBeVisible();
   await expect(pagos.erroresFormulario.first()).toBeVisible();

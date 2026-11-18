@@ -70,7 +70,8 @@ export class SettingsPage {
   }
 
   textoCampo(nombre: string) {
-    return this.page.getByText(nombre);
+    // Excluye la lista <ol> de "Orden del formulario", que repite cada etiqueta.
+    return this.page.getByText(nombre).and(this.page.locator(':not(ol *)'));
   }
 
   // ── Acciones — FormFieldConfig ─────────────────────────────────────────────
