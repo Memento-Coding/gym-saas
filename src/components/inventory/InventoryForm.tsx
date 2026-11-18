@@ -130,6 +130,12 @@ export function InventoryForm({
       price: Number(values.price),
       stock: values.kind === 'product' ? Number(values.stock) : null,
     };
+    // Al editar, el stock del formulario es una foto de cuando se abrió: si el
+    // usuario no lo tocó, no se envía para no pisar ventas posteriores.
+    const editingProduct = !!defaultValues?.id && defaultValues.kind === 'product';
+    if (editingProduct && values.kind === 'product' && values.stock === String(defaultValues.stock ?? '')) {
+      delete input.stock;
+    }
     await onSubmit(input);
   });
 

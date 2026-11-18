@@ -150,3 +150,48 @@ describe('InventoryForm — servicios', () => {
     expect(input.stock).toBeNull();
   });
 });
+
+describe('InventoryForm — edición y stock (#99)', () => {
+  const existing = { id: 'a', kind: 'product' as const, name: 'Guantes', cost: 10, price: 20, stock: 10 };
+
+  function renderEdit() {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<InventoryForm defaultValues={existing} onSubmit={onSubmit} />);
+    return onSubmit;
+  }
+
+  it('si no se toca el stock, el payload no lo incluye', async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderEdit();
+    const name = screen.getByLabelText(/nombre/i);
+    await user.clear(name);
+    await user.type(name, 'Guantes Pro');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const input = onSubmit.mock.calls[0][0] as CreateInventoryItemInput;
+    expect(input.name).toBe('Guantes Pro');
+    expect(input).not.toHaveProperty('stock');
+  });
+
+  it('si se edita el stock, el payload lo incluye', async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderEdit();
+    const stock = screen.getByLabelText(/stock/i);
+    await user.clear(stock);
+    await user.type(stock, '15');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect((onSubmit.mock.calls[0][0] as CreateInventoryItemInput).stock).toBe(15);
+  });
+
+  it('escribir de nuevo el mismo valor no cuenta como cambio', async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderEdit();
+    const stock = screen.getByLabelText(/stock/i);
+    await user.clear(stock);
+    await user.type(stock, '10');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('stock');
+  });
+});
