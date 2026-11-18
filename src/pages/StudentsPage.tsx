@@ -46,6 +46,7 @@ import { enrollStudent, type FirstPaymentInput } from '@/services/EnrollmentServ
 import { usePayments } from '@/hooks/usePayments';
 import {
   resolveStudentFields,
+  isAdultsOnly,
   buildStudentDefaults,
 } from '@/components/students/studentFormFields';
 
@@ -65,6 +66,7 @@ export function StudentsPage() {
   // Campos que este gimnasio configuró en Ajustes.
   const { formFields } = useSettings();
   const studentFields = useMemo(() => resolveStudentFields(formFields), [formFields]);
+  const adultsOnly = useMemo(() => isAdultsOnly(formFields), [formFields]);
   const { groupPlans, personalizedPlans } = useMemberships();
   const plans = useMemo(
     () => ({ memberships: groupPlans, personalized: personalizedPlans }),
@@ -227,6 +229,7 @@ export function StudentsPage() {
       <StudentProfile
         student={selectedFresh}
         fields={studentFields}
+        adultsOnly={adultsOnly}
         open={profileOpen}
         onOpenChange={setProfileOpen}
         onPayments={(s) => navigate(`/estudiantes/${encodeURIComponent(s.id)}`)}
@@ -254,6 +257,7 @@ export function StudentsPage() {
             <StudentForm
               key={editing?.id ?? 'new'}
               fields={studentFields}
+              minorBlock={!adultsOnly}
               plans={plans}
               defaultValues={editing ?? undefined}
               onSubmit={handleSubmit}

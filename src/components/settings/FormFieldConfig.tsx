@@ -3,6 +3,8 @@
  *
  * Permite:
  * - Elegir qué campos del sistema pide el gimnasio y cuáles son obligatorios
+ * - Reordenar los campos (del sistema y propios) y renombrar los del sistema
+ * - Ocultar el bloque de menor de edad si el gimnasio solo atiende adultos
  * - Agregar nuevos campos personalizados
  * - Editar nombre, opciones y obligatoriedad
  * - Eliminar campos (con confirmación)
@@ -31,13 +33,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, Pencil, Save, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2, Pencil, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FormFieldConfig as FormFieldConfigType } from '@/types/settings';
 import {
   LOCKED_STUDENT_FIELDS,
   STUDENT_FIELD_CATALOG,
+  isAdultsOnly,
   resolveStudentFields,
+  withAdultsOnly,
 } from '@/components/students/studentFormFields';
 
 interface FormFieldConfigProps {
@@ -81,6 +85,13 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
   const [editName, setEditName] = useState('');
   const [editRequired, setEditRequired] = useState(false);
   const [editOptions, setEditOptions] = useState('');
+
+  // Solo adultos: oculta el bloque de menor de edad / acudiente.
+  const [adultsOnly, setAdultsOnly] = useState(() => isAdultsOnly(fields));
+
+  // Renombrar un campo del sistema (alias de la etiqueta; la clave no cambia).
+  const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // Add field state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -207,10 +218,53 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
     saveFields(updated);
   };
 
-  const saveFields = async (fieldsToSave: FormFieldConfigType[]) => {
+  const moveField = (index: number, offset: -1 | 1) => {
+    const target = index + offset;
+    if (target < 0 || target >= localFields.length) return;
+    const updated = [...localFields];
+    [updated[index], updated[target]] = [updated[target], updated[index]];
+    setLocalFields(updated);
+    saveFields(updated);
+  };
+
+  const handleStartRename = (field: FormFieldConfigType) => {
+    setRenamingName(field.name);
+    setRenameValue(field.label);
+  };
+
+  const handleSaveRename = (field: FormFieldConfigType) => {
+    const original = STUDENT_FIELD_CATALOG.find((f) => f.name === field.name);
+    // Vacío = volver al nombre original.
+    const label = renameValue.trim() || original?.label || field.label;
+    if (label.length > 40) {
+      toast.error('El nombre del campo no puede superar 40 caracteres.');
+      return;
+    }
+    const taken = localFields.some(
+      (f) => f.name !== field.name && f.label.toLowerCase() === label.toLowerCase(),
+    );
+    if (taken) {
+      toast.error('Ya existe un campo con ese nombre.');
+      return;
+    }
+    const updated = localFields.map((f) => (f.name === field.name ? { ...f, label } : f));
+    setLocalFields(updated);
+    setRenamingName(null);
+    saveFields(updated);
+  };
+
+  const handleToggleAdultsOnly = (checked: boolean) => {
+    setAdultsOnly(checked);
+    saveFields(localFields, checked);
+  };
+
+  const saveFields = async (
+    fieldsToSave: FormFieldConfigType[],
+    adults: boolean = adultsOnly,
+  ) => {
     setSaving(true);
     try {
-      await onSave(fieldsToSave);
+      await onSave(withAdultsOnly(fieldsToSave, adults));
     } catch {
       toast.error('Error al guardar la configuración de campos.');
     } finally {
@@ -387,6 +441,106 @@ export function FormFieldConfigEditor({ fields, onSave }: FormFieldConfigProps) 
             )}
           </div>
 
+          {/* Orden del formulario y nombres de los campos del sistema */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+              Orden del formulario
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Los campos aparecen en este orden. En los campos del sistema también puedes
+              cambiar el nombre que se muestra.
+            </p>
+            <ol className="flex flex-col gap-1.5">
+              {localFields.map((field, index) => (
+                <li
+                  key={field.name}
+                  className="flex items-center justify-between gap-2 rounded-lg border p-2"
+                >
+                  {renamingName === field.name ? (
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        aria-label={`Nuevo nombre de ${field.label}`}
+                        placeholder={
+                          STUDENT_FIELD_CATALOG.find((f) => f.name === field.name)?.label
+                        }
+                        className="flex-1 text-sm"
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Guardar nombre de ${field.label}`}
+                        onClick={() => handleSaveRename(field)}
+                      >
+                        <Save className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Cancelar cambio de nombre"
+                        onClick={() => setRenamingName(null)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{field.label}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {field.isBuiltIn ? 'Sistema' : 'Propio'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {field.isBuiltIn && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Renombrar ${field.label}`}
+                            onClick={() => handleStartRename(field)}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Subir ${field.label}`}
+                          disabled={index === 0 || saving}
+                          onClick={() => moveField(index, -1)}
+                        >
+                          <ArrowUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Bajar ${field.label}`}
+                          disabled={index === localFields.length - 1 || saving}
+                          onClick={() => moveField(index, 1)}
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Gimnasios que solo atienden adultos */}
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3">
+            <Checkbox
+              id="adults-only"
+              checked={adultsOnly}
+              onCheckedChange={(checked) => handleToggleAdultsOnly(checked === true)}
+            />
+            <Label htmlFor="adults-only" className="text-sm">
+              Solo atiendo adultos: ocultar menor de edad y acudiente
+            </Label>
+          </div>
           {/* Add new field form */}
           {showAddForm ? (
             <div className="flex flex-col gap-3 rounded-lg border border-dashed p-4">
