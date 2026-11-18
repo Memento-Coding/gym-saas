@@ -42,6 +42,8 @@ import type {
 import { StudentList } from '@/components/students/StudentList';
 import { StudentProfile } from '@/components/students/StudentProfile';
 import { StudentForm } from '@/components/students/StudentForm';
+import { enrollStudent, type FirstPaymentInput } from '@/services/EnrollmentService';
+import { usePayments } from '@/hooks/usePayments';
 import {
   resolveStudentFields,
   buildStudentDefaults,
@@ -51,8 +53,9 @@ const MotionButton = motion.create(Button);
 
 export function StudentsPage() {
   const navigate = useNavigate();
-  const { students, isLoading, create, update, remove, freeze, unfreeze } =
+  const { students, isLoading, create, update, remove, freeze, unfreeze, reload } =
     useStudents();
+  const { registerPayment } = usePayments();
 
   // Búsqueda y filtros.
   const [query, setQuery] = useState('');
@@ -119,7 +122,7 @@ export function StudentsPage() {
     setProfileOpen(true);
   };
 
-  const handleSubmit = async (data: Partial<Student>) => {
+  const handleSubmit = async (data: Partial<Student>, firstPayment?: FirstPaymentInput | null) => {
     if (editing) {
       const result = await update(editing.id, data);
       if (result.success) {
@@ -133,13 +136,27 @@ export function StudentsPage() {
 
     // Creación: completa los campos requeridos del modelo con los defaults.
     const payload = { ...buildStudentDefaults(), ...data };
-    const result = await create(payload);
-    if (result.success) {
-      toast.success('Estudiante registrado.');
-      setFormOpen(false);
-    } else {
+    const result = await enrollStudent(payload, firstPayment, {
+      createStudent: create,
+      removeStudent: remove,
+      registerPayment,
+    });
+    if (!result.success) {
       toast.error(result.error);
+      return;
     }
+    if (result.payment) {
+      // El pago extiende la membresía y cae en caja: refresca estudiantes y pagos.
+      await reload();
+      toast.success(`Estudiante registrado. Pago ${result.payment.receiptNo} registrado.`);
+    } else {
+      toast.success(
+        firstPayment === null
+          ? 'Estudiante registrado sin pago: queda vencido hasta su primer pago.'
+          : 'Estudiante registrado.',
+      );
+    }
+    setFormOpen(false);
   };
 
   const handleFreeze = async (id: string, reason: string, days: number) => {

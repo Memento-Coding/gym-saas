@@ -44,6 +44,8 @@ import {
   todayLocalIso,
 } from '@/utils/validation';
 import { sanitizeNumericInput } from '@/utils/sanitize';
+import type { FirstPaymentInput } from '@/services/EnrollmentService';
+import type { PaymentMethod } from '@/types/payment';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -76,7 +78,11 @@ export interface StudentFormProps {
   /** Datos históricos del estudiante en modo edición. */
   defaultValues?: Partial<Student>;
   /** Callback de envío. Recibe el subconjunto de datos del estudiante. */
-  onSubmit: (data: Partial<Student>) => Promise<void>;
+  /**
+   * Callback de envío. `firstPayment` solo se informa al crear con catálogo de
+   * planes: un objeto si se registra el primer pago ahora, `null` si no.
+   */
+  onSubmit: (data: Partial<Student>, firstPayment?: FirstPaymentInput | null) => Promise<void>;
   /** Indica que hay una operación en curso (deshabilita acciones). */
   isLoading?: boolean;
   /** Callback opcional para cancelar la edición. */
@@ -118,6 +124,9 @@ const ROOT_STUDENT_KEYS = new Set<string>([
 /** Este campo no se digita: sale de la fecha de pago. */
 const EXPIRY_FIELD = 'subscriptionEndDate';
 
+/** Métodos de pago admitidos para el primer pago (los mismos del módulo de Pagos). */
+const PAYMENT_METHODS: PaymentMethod[] = ['Efectivo', 'Nequi', 'Banco'];
+
 /** Campos que contienen nombres de persona. */
 const PERSON_NAME_FIELDS = new Set(['firstName', 'lastName', 'emergencyName']);
 
@@ -156,7 +165,11 @@ type FormValues = Record<string, unknown>;
  * Los campos `required` producen mensajes de error cuando están vacíos.
  * El guardián se valida condicionalmente según isMinor mediante superRefine.
  */
-function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeAny {
+function buildSchema(
+  fields: FormFieldConfig[],
+  initial: FormValues,
+  canPayNow = false,
+): z.ZodTypeAny {
   const shape: Record<string, z.ZodTypeAny> = {
     // isMinor siempre presente para la lógica condicional (Req 3.2).
     isMinor: z.boolean().default(false),
@@ -265,6 +278,21 @@ function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeA
       const issue = (path: string, message: string) =>
         ctx.addIssue({ code: 'custom', path: [path], message });
       const isMinor = data.isMinor === true;
+
+      if (canPayNow && data.registerFirstPayment === true) {
+        if (typeof data.planName !== 'string' || data.planName === '') {
+          issue('planName', 'Selecciona un plan para registrar el primer pago.');
+        }
+        const amount = copAmount('El monto del pago').safeParse(data.firstPaymentAmount);
+        if (!amount.success) issue('firstPaymentAmount', amount.error.issues[0].message);
+        else if (!((amount.data as number) > 0)) {
+          issue('firstPaymentAmount', 'El monto del pago debe ser mayor a cero.');
+        }
+        if (!PAYMENT_METHODS.includes(data.firstPaymentMethod as PaymentMethod)) {
+          issue('firstPaymentMethod', 'Selecciona un método de pago.');
+        }
+      }
+
       const type = getDocumentType(data.documentType as DocumentTypeCode);
 
       const documentId = data.documentId;
@@ -466,11 +494,23 @@ export function StudentForm({
     return configuredFields.map((f) => (f.name === 'planName' ? { ...f, options: names } : f));
   }, [configuredFields, plans, defaultValues?.planName]);
 
-  const initialValues = useMemo(
-    () => buildDefaultValues(fields, defaultValues),
-    [fields, defaultValues],
+  // El primer pago solo aplica al crear y con catálogo de planes para cobrar.
+  const canPayNow = !defaultValues?.id && !!plans && fields.some((f) => f.name === 'planName');
+
+  const initialValues = useMemo(() => {
+    const values = buildDefaultValues(fields, defaultValues);
+    if (canPayNow) {
+      const plan = findPlan(plans, (p) => p.name === values.planName)?.plan;
+      values.registerFirstPayment = true;
+      values.firstPaymentAmount = plan ? String(plan.price) : '';
+      values.firstPaymentMethod = 'Efectivo';
+    }
+    return values;
+  }, [fields, defaultValues, canPayNow, plans]);
+  const schema = useMemo(
+    () => buildSchema(fields, initialValues, canPayNow),
+    [fields, initialValues, canPayNow],
   );
-  const schema = useMemo(() => buildSchema(fields, initialValues), [fields, initialValues]);
 
   // El cast del resolver evita la fricción de inferencia entre Zod v4 y
   // react-hook-form, manteniendo FormValues como tipo del formulario.
@@ -490,6 +530,7 @@ export function StudentForm({
   });
 
   const isMinor = form.watch('isMinor') === true;
+  const registerFirstPayment = form.watch('registerFirstPayment') === true;
   const documentType = form.watch('documentType') as DocumentTypeCode;
   const guardianDocumentType = form.watch('guardianDocumentType') as DocumentTypeCode;
 
@@ -515,6 +556,10 @@ export function StudentForm({
     if (chosen) {
       form.setValue('monthlyFee', String(chosen.plan.price));
       form.clearErrors('monthlyFee');
+      if (canPayNow) {
+        form.setValue('firstPaymentAmount', String(chosen.plan.price));
+        form.clearErrors(['firstPaymentAmount', 'planName']);
+      }
       // Al editar, cambiar de plan no debe mover un vencimiento ya pactado.
       const paymentDate = form.getValues('paymentDate') as string;
       if (!defaultValues?.id || paymentDate !== initialValues.paymentDate) {
@@ -569,7 +614,23 @@ export function StudentForm({
     }
 
     const data = assembleStudentData(values, fields, defaultValues, plans);
-    await onSubmit(data);
+    if (!canPayNow) {
+      await onSubmit(data);
+      return;
+    }
+    if (values.registerFirstPayment !== true) {
+      await onSubmit(data, null);
+      return;
+    }
+    const chosen = findPlan(plans, (p) => p.name === values.planName);
+    await onSubmit(data, {
+      date: isValidIsoDate(String(values.paymentDate)) ? String(values.paymentDate) : todayLocalIso(),
+      amount: Number(values.firstPaymentAmount),
+      method: values.firstPaymentMethod as PaymentMethod,
+      planName: String(values.planName),
+      category: chosen?.category ?? 'mensualidad',
+      single: chosen?.plan.single === true,
+    });
   });
 
   const submitDisabled = isLoading || isCheckingDocument;
@@ -714,6 +775,90 @@ export function StudentForm({
                 </FormItem>
               )}
             />
+          </div>
+        )}
+
+        {canPayNow && (
+          <div className="grid gap-4 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="registerFirstPayment"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center gap-2 space-y-0 sm:col-span-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value === true}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked === true);
+                        form.clearErrors(['firstPaymentAmount', 'firstPaymentMethod', 'planName']);
+                      }}
+                      disabled={isLoading}
+                    />
+                  </FormControl>
+                  <FormLabel className="!mt-0 cursor-pointer">Registrar primer pago ahora</FormLabel>
+                </FormItem>
+              )}
+            />
+            {registerFirstPayment ? (
+              <>
+                <FormField
+                  control={form.control}
+                  name="firstPaymentAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Monto del pago<span className="ml-0.5 text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={(field.value as string) ?? ''}
+                          onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="firstPaymentMethod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Método de pago<span className="ml-0.5 text-destructive">*</span>
+                      </FormLabel>
+                      <Select value={field.value as string} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PAYMENT_METHODS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                El estudiante se creará sin pago y quedará vencido hasta que registres su primer
+                pago.
+              </p>
+            )}
           </div>
         )}
 

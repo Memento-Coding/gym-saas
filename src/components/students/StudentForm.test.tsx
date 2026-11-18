@@ -365,7 +365,7 @@ describe('StudentForm — planes del gimnasio', () => {
 
   it('no bloquea editar a quien tiene un plan ya retirado', async () => {
     const user = userEvent.setup();
-    const onSubmit = renderPlans({ ...base, planName: 'Plan retirado' });
+    const onSubmit = renderPlans({ ...base, id: 'stu-1', planName: 'Plan retirado' });
     await user.click(screen.getByRole('button', { name: /guardar/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].planName).toBe('Plan retirado');
