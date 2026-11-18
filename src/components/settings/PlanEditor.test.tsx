@@ -60,11 +60,21 @@ describe('PlanEditor — precio', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('muestra error con precio no numérico', async () => {
+  it('@adversarial bloquea letras en el precio al escribir y al pegar', () => {
+    renderEditor();
+
+    const price = screen.getByLabelText(/precio del plan plan-mensual/i) as HTMLInputElement;
+    fireEvent.change(price, { target: { value: 'abc' } });
+    expect(price.value).not.toMatch(/[a-z]/i);
+    fireEvent.change(price, { target: { value: '12xyz34' } });
+    expect(price.value).toBe('1234');
+  });
+
+  it('muestra error con precio decimal', async () => {
     renderEditor();
 
     const price = screen.getByLabelText(/precio del plan plan-mensual/i);
-    fireEvent.change(price, { target: { value: 'abc' } });
+    fireEvent.change(price, { target: { value: '10.5' } });
 
     expect(
       await screen.findByText(/solo puede contener números/i),

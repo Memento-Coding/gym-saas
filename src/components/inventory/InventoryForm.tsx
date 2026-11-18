@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { copAmount, integerInRange, textSchema } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 import type { CreateInventoryItemInput } from '@/services/InventoryService';
 import type { InventoryItem } from '@/types/inventory';
 
@@ -105,7 +106,7 @@ export function InventoryForm({
 
   const form = useForm<InventoryFormValues>({
     resolver,
-    mode: 'onSubmit',
+    mode: 'onTouched',
     defaultValues: {
       kind: defaultValues?.kind ?? 'product',
       name: defaultValues?.name ?? '',
@@ -187,7 +188,13 @@ export function InventoryForm({
               <FormItem>
                 <FormLabel>Costo</FormLabel>
                 <FormControl>
-                  <Input type="text" inputMode="numeric" placeholder="0" {...field} />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -200,7 +207,13 @@ export function InventoryForm({
               <FormItem>
                 <FormLabel>Precio</FormLabel>
                 <FormControl>
-                  <Input type="text" inputMode="numeric" placeholder="0" {...field} />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -219,7 +232,13 @@ export function InventoryForm({
                   Stock inicial <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input type="text" inputMode="numeric" placeholder="0" {...field} />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

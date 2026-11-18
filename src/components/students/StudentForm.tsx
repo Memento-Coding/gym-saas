@@ -43,6 +43,7 @@ import {
   textSchema,
   todayLocalIso,
 } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -143,7 +144,7 @@ function sanitizeInput(
 ): string {
   if (field.name === 'documentId') return cleanDocumentInput(value, documentType);
   if (field.type === 'tel') return value.replace(/[^\d+()\s-]/g, '');
-  if (field.type === 'number') return value.replace(/[^\d.-]/g, '');
+  if (field.type === 'number') return sanitizeNumericInput(value);
   return value;
 }
 

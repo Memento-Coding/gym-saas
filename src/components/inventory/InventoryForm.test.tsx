@@ -70,6 +70,41 @@ describe('InventoryForm — validación', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // @adversarial
+  it('@adversarial no acepta letras al escribir ni al pegar en campos numéricos', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    for (const label of [/costo/i, /precio/i, /stock inicial/i]) {
+      const input = screen.getByLabelText(label) as HTMLInputElement;
+      await user.type(input, 'abc');
+      expect(input.value).toBe('');
+      await user.click(input);
+      await user.paste('12xyz34');
+      expect(input.value).toBe('1234');
+    }
+  });
+
+  it('@adversarial muestra el error de negativo al perder el foco (onTouched)', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByLabelText(/precio/i), '-100');
+    await user.tab();
+
+    expect(await screen.findByText(/no puede ser negativo/i)).toBeInTheDocument();
+  });
+
+  it('@adversarial muestra el error de decimal al perder el foco (onTouched)', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByLabelText(/precio/i), '10.5');
+    await user.tab();
+
+    expect(await screen.findByText(/solo puede contener números/i)).toBeInTheDocument();
+  });
+
   it('emite CreateInventoryItemInput válido para un producto', async () => {
     const user = userEvent.setup();
     const { onSubmit } = renderForm();

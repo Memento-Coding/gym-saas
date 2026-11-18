@@ -17,6 +17,7 @@ import { es } from 'date-fns/locale';
 import { useCourtesies } from '@/hooks/useCourtesies';
 import { useStudents } from '@/hooks/useStudents';
 import { isoDateSchema, positiveInteger, textSchema } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -308,7 +309,7 @@ export function CourtesiesPage() {
                 type="text"
                 inputMode="numeric"
                 value={formWeeks}
-                onChange={(e) => setFormWeeks(e.target.value)}
+                onChange={(e) => setFormWeeks(sanitizeNumericInput(e.target.value))}
                 placeholder="Ej: 2"
                 required
               />
