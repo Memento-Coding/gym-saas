@@ -26,10 +26,19 @@ Característica: Registro de pagos de membresía
     Ejemplos:
       | descuento   |
       | -1          |
-      | abc         |
-      | 1,5         |
+      | 1.5         |
+      | 1-2         |
       | 99999999    |
 
+  @adversarial
+  Esquema del escenario: El campo de descuento bloquea los caracteres no numéricos al escribir
+    Cuando escribe el descuento "<escrito>" sin confirmar
+    Entonces el campo de descuento debería mostrar "<mostrado>"
+    Ejemplos:
+      | escrito | mostrado |
+      | abc     |          |
+      | 1,5     | 15       |
+      | $10     | 10       |
   @adversarial
   Escenario: Una fecha de pago futura no registra el pago
     Cuando confirma un pago del primer plan con fecha de pago en 5 días
@@ -71,5 +80,5 @@ Característica: Registro de pagos de membresía
     Ejemplos:
       | abono    |
       | -1       |
-      | abc      |
+      | 1-2      |
       | 99999999 |
