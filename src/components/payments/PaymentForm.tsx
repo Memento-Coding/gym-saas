@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { SplitPaymentEditor } from '@/components/payments/SplitPaymentEditor';
 import { useMemberships } from '@/hooks/useMemberships';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 import type { PaymentInput } from '@/services/PaymentService';
 import type { PaymentMethod, PaymentSplit } from '@/types/payment';
 import type { MembershipPlan } from '@/types/membership';
@@ -159,7 +160,7 @@ export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = 
 
   const form = useForm<PaymentFormValues>({
     resolver,
-    mode: 'onSubmit',
+    mode: 'onTouched',
     defaultValues: {
       date: todayLocalIso(),
       planId: '',
@@ -359,7 +360,13 @@ export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = 
                     mensajes claros en vez del bloqueo silencioso de
                     type="number" (que además impide capturar el signo en jsdom).
                   */}
-                  <Input type="text" inputMode="numeric" placeholder="0" {...field} />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -395,7 +402,13 @@ export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = 
                       la regla del campo con mensaje claro, sin el bloqueo
                       silencioso de type="number". Alinea con STEERING_FORMS §1.
                     */}
-                    <Input type="text" inputMode="numeric" placeholder="0" {...field} />
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
+                      {...field}
+                      onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

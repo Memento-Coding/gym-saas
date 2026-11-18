@@ -36,6 +36,8 @@ export interface UseInventoryReturn {
   ) => Promise<ServiceResult<InventoryItem>>;
   deleteItem: (id: string) => Promise<ServiceResult<string>>;
   restock: (id: string, quantity: number) => Promise<ServiceResult<InventoryItem>>;
+  /** Suma/resta unidades sobre el stock vigente (sin pisar ventas concurrentes). */
+  adjustStock: (id: string, delta: number) => Promise<ServiceResult<InventoryItem>>;
 }
 
 export function useInventory(): UseInventoryReturn {
@@ -133,7 +135,13 @@ export function useInventory(): UseInventoryReturn {
     [runMutation, service],
   );
 
+  const adjustStock = useCallback(
+    (id: string, delta: number) => runMutation(() => service!.adjustStock(id, delta)),
+    [runMutation, service],
+  );
+
   return {
+    adjustStock,
     items,
     products,
     services,

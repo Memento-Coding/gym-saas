@@ -70,6 +70,43 @@ describe('PaymentForm — descuento (input numérico)', () => {
     });
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it('@adversarial no acepta letras al escribir ni al pegar en el descuento', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const discount = screen.getByLabelText(/descuento \(monto\)/i) as HTMLInputElement;
+    await user.clear(discount);
+    await user.type(discount, 'abc');
+    expect(discount.value).toBe('');
+    await user.click(discount);
+    await user.paste('50xyz0');
+    expect(discount.value).toBe('500');
+  });
+
+  it('@adversarial muestra el error de negativo al perder el foco (onTouched)', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const discount = screen.getByLabelText(/descuento \(monto\)/i) as HTMLInputElement;
+    await user.clear(discount);
+    await user.type(discount, '-500');
+    await user.tab();
+
+    expect(await screen.findByText(/no puede ser negativo/i)).toBeInTheDocument();
+  });
+
+  it('@adversarial muestra el error de decimal al perder el foco (onTouched)', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const discount = screen.getByLabelText(/descuento \(monto\)/i) as HTMLInputElement;
+    await user.clear(discount);
+    await user.type(discount, '10.5');
+    await user.tab();
+
+    expect(await screen.findByText(/solo puede contener números/i)).toBeInTheDocument();
+  });
 });
 
 // =============================================================================

@@ -43,6 +43,10 @@ import {
   textSchema,
   todayLocalIso,
 } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
+import type { FirstPaymentInput } from '@/services/EnrollmentService';
+import { EMERGENCY_CONTACT_FIELD } from '@/components/students/studentFormFields';
+import type { PaymentMethod } from '@/types/payment';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -72,10 +76,19 @@ export interface StudentFormProps {
   fields: FormFieldConfig[];
   /** Planes del gimnasio: alimentan el campo Plan. */
   plans?: CostsConfig;
+  /**
+   * Muestra el bloque de menor de edad / acudiente (por defecto sí). Un gimnasio
+   * que solo atiende adultos lo oculta en Ajustes.
+   */
+  minorBlock?: boolean;
   /** Datos históricos del estudiante en modo edición. */
   defaultValues?: Partial<Student>;
   /** Callback de envío. Recibe el subconjunto de datos del estudiante. */
-  onSubmit: (data: Partial<Student>) => Promise<void>;
+  /**
+   * Callback de envío. `firstPayment` solo se informa al crear con catálogo de
+   * planes: un objeto si se registra el primer pago ahora, `null` si no.
+   */
+  onSubmit: (data: Partial<Student>, firstPayment?: FirstPaymentInput | null) => Promise<void>;
   /** Indica que hay una operación en curso (deshabilita acciones). */
   isLoading?: boolean;
   /** Callback opcional para cancelar la edición. */
@@ -117,6 +130,9 @@ const ROOT_STUDENT_KEYS = new Set<string>([
 /** Este campo no se digita: sale de la fecha de pago. */
 const EXPIRY_FIELD = 'subscriptionEndDate';
 
+/** Métodos de pago admitidos para el primer pago (los mismos del módulo de Pagos). */
+const PAYMENT_METHODS: PaymentMethod[] = ['Efectivo', 'Nequi', 'Banco'];
+
 /** Campos que contienen nombres de persona. */
 const PERSON_NAME_FIELDS = new Set(['firstName', 'lastName', 'emergencyName']);
 
@@ -143,7 +159,7 @@ function sanitizeInput(
 ): string {
   if (field.name === 'documentId') return cleanDocumentInput(value, documentType);
   if (field.type === 'tel') return value.replace(/[^\d+()\s-]/g, '');
-  if (field.type === 'number') return value.replace(/[^\d.-]/g, '');
+  if (field.type === 'number') return sanitizeNumericInput(value);
   return value;
 }
 
@@ -155,7 +171,12 @@ type FormValues = Record<string, unknown>;
  * Los campos `required` producen mensajes de error cuando están vacíos.
  * El guardián se valida condicionalmente según isMinor mediante superRefine.
  */
-function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeAny {
+function buildSchema(
+  fields: FormFieldConfig[],
+  initial: FormValues,
+  canPayNow = false,
+  minorBlock = true,
+): z.ZodTypeAny {
   const shape: Record<string, z.ZodTypeAny> = {
     // isMinor siempre presente para la lógica condicional (Req 3.2).
     isMinor: z.boolean().default(false),
@@ -178,6 +199,18 @@ function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeA
     }
 
     let validator: z.ZodTypeAny;
+
+    // Contacto de emergencia: dos entradas (nombre y teléfono) que la API guarda
+    // como un solo texto. Se valida con holgura para no bloquear datos históricos.
+    if (field.name === EMERGENCY_CONTACT_FIELD) {
+      const part = (max: number) => {
+        const base = z.string().trim().max(max, { message: `${field.label} no puede superar ${max} caracteres.` });
+        return field.required ? base.min(1, { message: messages.required(field.label) }) : base;
+      };
+      shape.emergencyName = part(100);
+      shape.emergencyPhone = z.string().trim().max(30, { message: `El teléfono de ${field.label.toLowerCase()} no puede superar 30 caracteres.` });
+      continue;
+    }
 
     // El formato depende del tipo elegido: se valida en el superRefine.
     if (field.name === 'documentId') {
@@ -263,7 +296,23 @@ function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeA
     .superRefine((data, ctx) => {
       const issue = (path: string, message: string) =>
         ctx.addIssue({ code: 'custom', path: [path], message });
-      const isMinor = data.isMinor === true;
+      // Con el bloque oculto no hay acudiente que validar.
+      const isMinor = minorBlock && data.isMinor === true;
+
+      if (canPayNow && data.registerFirstPayment === true) {
+        if (typeof data.planName !== 'string' || data.planName === '') {
+          issue('planName', 'Selecciona un plan para registrar el primer pago.');
+        }
+        const amount = copAmount('El monto del pago').safeParse(data.firstPaymentAmount);
+        if (!amount.success) issue('firstPaymentAmount', amount.error.issues[0].message);
+        else if (!((amount.data as number) > 0)) {
+          issue('firstPaymentAmount', 'El monto del pago debe ser mayor a cero.');
+        }
+        if (!PAYMENT_METHODS.includes(data.firstPaymentMethod as PaymentMethod)) {
+          issue('firstPaymentMethod', 'Selecciona un método de pago.');
+        }
+      }
+
       const type = getDocumentType(data.documentType as DocumentTypeCode);
 
       const documentId = data.documentId;
@@ -272,7 +321,9 @@ function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeA
         if (error) issue('documentId', error);
       }
 
-      if (isMinor ? !type.forMinors : !type.forAdults) {
+      // Sin bloque de menor, a quien ya era menor no se le exige el tipo de adulto.
+      const skipTypeCheck = !minorBlock && initial.isMinor === true;
+      if (!skipTypeCheck && (isMinor ? !type.forMinors : !type.forAdults)) {
         issue(
           'documentType',
           `${type.label} no corresponde a ${isMinor ? 'un menor' : 'un mayor'} de edad.`,
@@ -280,7 +331,7 @@ function buildSchema(fields: FormFieldConfig[], initial: FormValues): z.ZodTypeA
       }
 
       const birthDate = data.dateOfBirth;
-      if (typeof birthDate === 'string' && isValidIsoDate(birthDate)) {
+      if (minorBlock && typeof birthDate === 'string' && isValidIsoDate(birthDate)) {
         const isAdultByAge = ageFromBirthDate(birthDate) >= 18;
         if (isAdultByAge === isMinor) {
           issue(
@@ -352,6 +403,12 @@ function buildDefaultValues(
       continue;
     }
 
+    if (field.name === EMERGENCY_CONTACT_FIELD) {
+      values.emergencyName = defaults?.emergencyName ?? '';
+      values.emergencyPhone = defaults?.emergencyPhone ?? '';
+      continue;
+    }
+
     if (ROOT_STUDENT_KEYS.has(field.name)) {
       const raw = (defaults as Record<string, unknown> | undefined)?.[field.name];
       values[field.name] = raw ?? (field.type === 'number' ? '' : '');
@@ -379,6 +436,7 @@ function assembleStudentData(
   fields: FormFieldConfig[],
   defaults?: Partial<Student>,
   plans?: CostsConfig,
+  minorBlock = true,
 ): Partial<Student> {
   const result: Record<string, unknown> = {};
 
@@ -387,6 +445,12 @@ function assembleStudentData(
 
   for (const field of fields) {
     if ((GUARDIAN_FIELDS as readonly string[]).includes(field.name)) {
+      continue;
+    }
+
+    if (field.name === EMERGENCY_CONTACT_FIELD) {
+      result.emergencyName = String(values.emergencyName ?? '').trim();
+      result.emergencyPhone = String(values.emergencyPhone ?? '').trim();
       continue;
     }
 
@@ -408,6 +472,12 @@ function assembleStudentData(
     result.planId = chosen.plan.id;
     result.planCategory = chosen.category;
     result.monthlyFee ??= chosen.plan.price;
+  }
+
+  // Con el bloque de menor oculto no se toca lo ya guardado (isMinor, acudiente).
+  if (!minorBlock) {
+    if (Object.keys(mergedCustom).length > 0) result.customFields = mergedCustom;
+    return result as Partial<Student>;
   }
 
   // isMinor y guardián (Req 3.2).
@@ -443,6 +513,7 @@ function normalizeValue(raw: unknown, type: FormFieldConfig['type']): unknown {
 export function StudentForm({
   fields: configuredFields,
   plans,
+  minorBlock = true,
   defaultValues: studentValues,
   onSubmit,
   isLoading = false,
@@ -465,11 +536,23 @@ export function StudentForm({
     return configuredFields.map((f) => (f.name === 'planName' ? { ...f, options: names } : f));
   }, [configuredFields, plans, defaultValues?.planName]);
 
-  const initialValues = useMemo(
-    () => buildDefaultValues(fields, defaultValues),
-    [fields, defaultValues],
+  // El primer pago solo aplica al crear y con catálogo de planes para cobrar.
+  const canPayNow = !defaultValues?.id && !!plans && fields.some((f) => f.name === 'planName');
+
+  const initialValues = useMemo(() => {
+    const values = buildDefaultValues(fields, defaultValues);
+    if (canPayNow) {
+      const plan = findPlan(plans, (p) => p.name === values.planName)?.plan;
+      values.registerFirstPayment = true;
+      values.firstPaymentAmount = plan ? String(plan.price) : '';
+      values.firstPaymentMethod = 'Efectivo';
+    }
+    return values;
+  }, [fields, defaultValues, canPayNow, plans]);
+  const schema = useMemo(
+    () => buildSchema(fields, initialValues, canPayNow, minorBlock),
+    [fields, initialValues, canPayNow, minorBlock],
   );
-  const schema = useMemo(() => buildSchema(fields, initialValues), [fields, initialValues]);
 
   // El cast del resolver evita la fricción de inferencia entre Zod v4 y
   // react-hook-form, manteniendo FormValues como tipo del formulario.
@@ -488,7 +571,8 @@ export function StudentForm({
     mode: 'onTouched',
   });
 
-  const isMinor = form.watch('isMinor') === true;
+  const isMinor = minorBlock && form.watch('isMinor') === true;
+  const registerFirstPayment = form.watch('registerFirstPayment') === true;
   const documentType = form.watch('documentType') as DocumentTypeCode;
   const guardianDocumentType = form.watch('guardianDocumentType') as DocumentTypeCode;
 
@@ -514,6 +598,10 @@ export function StudentForm({
     if (chosen) {
       form.setValue('monthlyFee', String(chosen.plan.price));
       form.clearErrors('monthlyFee');
+      if (canPayNow) {
+        form.setValue('firstPaymentAmount', String(chosen.plan.price));
+        form.clearErrors(['firstPaymentAmount', 'planName']);
+      }
       // Al editar, cambiar de plan no debe mover un vencimiento ya pactado.
       const paymentDate = form.getValues('paymentDate') as string;
       if (!defaultValues?.id || paymentDate !== initialValues.paymentDate) {
@@ -567,8 +655,24 @@ export function StudentForm({
       }
     }
 
-    const data = assembleStudentData(values, fields, defaultValues, plans);
-    await onSubmit(data);
+    const data = assembleStudentData(values, fields, defaultValues, plans, minorBlock);
+    if (!canPayNow) {
+      await onSubmit(data);
+      return;
+    }
+    if (values.registerFirstPayment !== true) {
+      await onSubmit(data, null);
+      return;
+    }
+    const chosen = findPlan(plans, (p) => p.name === values.planName);
+    await onSubmit(data, {
+      date: isValidIsoDate(String(values.paymentDate)) ? String(values.paymentDate) : todayLocalIso(),
+      amount: Number(values.firstPaymentAmount),
+      method: values.firstPaymentMethod as PaymentMethod,
+      planName: String(values.planName),
+      category: chosen?.category ?? 'mensualidad',
+      single: chosen?.plan.single === true,
+    });
   });
 
   const submitDisabled = isLoading || isCheckingDocument;
@@ -619,17 +723,26 @@ export function StudentForm({
                     )}
                   />
                 )}
-                <DynamicField
-                  field={field}
-                  control={form.control}
-                  documentType={documentType}
-                  onSelect={handleSelect}
-                />
+                {field.name === EMERGENCY_CONTACT_FIELD ? (
+                  <EmergencyContactFields
+                    field={field}
+                    control={form.control}
+                    disabled={isLoading}
+                  />
+                ) : (
+                  <DynamicField
+                    field={field}
+                    control={form.control}
+                    documentType={documentType}
+                    onSelect={handleSelect}
+                  />
+                )}
               </Fragment>
             ))}
         </div>
 
-        {/* Lógica condicional: menor de edad (Req 3.2). */}
+        {/* Lógica condicional: menor de edad (Req 3.2). Oculta si el gimnasio solo atiende adultos. */}
+        {minorBlock && (
         <FormField
           control={form.control}
           name="isMinor"
@@ -651,6 +764,7 @@ export function StudentForm({
             </FormItem>
           )}
         />
+        )}
 
         {isMinor && (
           <div className="grid gap-4 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
@@ -713,6 +827,90 @@ export function StudentForm({
                 </FormItem>
               )}
             />
+          </div>
+        )}
+
+        {canPayNow && (
+          <div className="grid gap-4 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="registerFirstPayment"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center gap-2 space-y-0 sm:col-span-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value === true}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked === true);
+                        form.clearErrors(['firstPaymentAmount', 'firstPaymentMethod', 'planName']);
+                      }}
+                      disabled={isLoading}
+                    />
+                  </FormControl>
+                  <FormLabel className="!mt-0 cursor-pointer">Registrar primer pago ahora</FormLabel>
+                </FormItem>
+              )}
+            />
+            {registerFirstPayment ? (
+              <>
+                <FormField
+                  control={form.control}
+                  name="firstPaymentAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Monto del pago<span className="ml-0.5 text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={(field.value as string) ?? ''}
+                          onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="firstPaymentMethod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Método de pago<span className="ml-0.5 text-destructive">*</span>
+                      </FormLabel>
+                      <Select value={field.value as string} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PAYMENT_METHODS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                El estudiante se creará sin pago y quedará vencido hasta que registres su primer
+                pago.
+              </p>
+            )}
           </div>
         )}
 
@@ -790,6 +988,69 @@ function DocumentTypeField({
         </FormItem>
       )}
     />
+  );
+}
+
+/** Contacto de emergencia: nombre y teléfono, que la API guarda como un único texto. */
+function EmergencyContactFields({
+  field,
+  control,
+  disabled,
+}: {
+  field: FormFieldConfig;
+  control: FormControlHandle;
+  disabled: boolean;
+}) {
+  return (
+    <>
+      <FormField
+        control={control}
+        name="emergencyName"
+        render={({ field: rhf }) => (
+          <FormItem>
+            <FormLabel>
+              {field.label} (nombre)
+              {field.required && <span className="ml-0.5 text-destructive">*</span>}
+            </FormLabel>
+            <FormControl>
+              <Input
+                type="text"
+                value={(rhf.value as string) ?? ''}
+                onChange={rhf.onChange}
+                onBlur={rhf.onBlur}
+                name={rhf.name}
+                ref={rhf.ref}
+                disabled={disabled}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name="emergencyPhone"
+        render={({ field: rhf }) => (
+          <FormItem>
+            <FormLabel>{field.label} (teléfono)</FormLabel>
+            <FormControl>
+              <Input
+                type="tel"
+                inputMode="tel"
+                placeholder="3001234567"
+                value={(rhf.value as string) ?? ''}
+                onChange={(e) => rhf.onChange(e.target.value.replace(/[^\d+()\s.-]/g, ''))}
+                onBlur={rhf.onBlur}
+                name={rhf.name}
+                ref={rhf.ref}
+                disabled={disabled}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </>
   );
 }
 

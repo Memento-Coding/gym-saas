@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { CreditPlanEditor } from '@/components/sales/CreditPlanEditor';
 import { computeSaleTotal } from '@/services/SaleService';
 import { positiveInteger } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 import type { CreateSaleInput, SaleLineInput, CreditPlanInput } from '@/services/SaleService';
 import type { InventoryItem } from '@/types/inventory';
 import type { PaymentMethod } from '@/types/payment';
@@ -242,7 +243,7 @@ export function SaleForm({ inventory, onSubmit, submitting = false }: SaleFormPr
                 inputMode="numeric"
                 aria-label={`Cantidad ${index + 1}`}
                 value={r.line.quantity}
-                onChange={(e) => updateLine(index, { quantity: e.target.value })}
+                onChange={(e) => updateLine(index, { quantity: sanitizeNumericInput(e.target.value) })}
               />
             </div>
 

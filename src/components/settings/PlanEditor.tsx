@@ -33,6 +33,7 @@ import { countStudentsOnPlan } from '@/services/MembershipService';
 import type { CostsConfig, MembershipPlan } from '@/types/membership';
 import type { Student } from '@/types/student';
 import { copAmount, messages, positiveInteger } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 
 interface PlanEditorProps {
   costs: CostsConfig | null;
@@ -190,7 +191,7 @@ function PriceInput({
         aria-invalid={invalid}
         className={cn('pl-6 text-sm', invalid && 'border-destructive')}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(sanitizeNumericInput(e.target.value))}
       />
     </div>
   );

@@ -14,7 +14,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getStorageService } from '@/services/storage';
 import { BackupService } from '@/services/BackupService';
-import { COSTS_KEY, MembershipService } from '@/services/MembershipService';
+import { COSTS_KEY, MembershipService, detectPlanRenames } from '@/services/MembershipService';
+import { studentService } from '@/services/StudentService';
 import type { StorageService } from '@/services/storage/StorageService';
 import type { BrandingConfig, FormFieldConfig } from '@/types/settings';
 import type { CostsConfig } from '@/types/membership';
@@ -124,8 +125,12 @@ export function useSettings(): UseSettingsReturn {
       if (!storage) return;
       setError(null);
       try {
+        // Catálogo vigente en storage (no el estado React, que puede estar desfasado).
+        const previous = await new MembershipService(storage).getCostsConfig();
         await storage.set(COSTS_KEY, config);
         setCosts(config);
+        // Los estudiantes guardan el nombre del plan: se propaga el renombre.
+        await studentService.applyPlanRenames(detectPlanRenames(previous, config));
       } catch {
         setError('Error al guardar los planes.');
         throw new Error('Error al guardar los planes.');
