@@ -15,6 +15,7 @@
 import type { Student } from '../types/student';
 import { getStorageService } from './storage/StorageService';
 import { normalizeText } from '@/utils/stringUtils';
+import { applyPlanRenames, type PlanRename } from './MembershipService';
 
 /** Clave de almacenamiento donde persiste la colección de estudiantes. */
 const STORAGE_KEY = 'students';
@@ -206,6 +207,21 @@ export class StudentService {
     } catch (error) {
       return { success: false, error: this.toErrorMessage(error) };
     }
+  }
+
+  /**
+   * Propaga el renombre de planes a los estudiantes: los vinculados por
+   * `planId` (y los antiguos que solo guardaban el nombre anterior) pasan a
+   * mostrar el nombre vigente. Persiste solo si hubo cambios.
+   *
+   * @returns Cantidad de estudiantes actualizados.
+   */
+  async applyPlanRenames(renames: PlanRename[]): Promise<number> {
+    const students = await this.read();
+    const updated = applyPlanRenames(students, renames);
+    const changed = updated.filter((s, i) => s !== students[i]).length;
+    if (changed > 0) await this.write(updated);
+    return changed;
   }
 
   /**

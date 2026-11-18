@@ -32,6 +32,50 @@ export function countStudentsOnPlan(
   ).length;
 }
 
+/** Un plan cuyo nombre cambió entre dos versiones del catálogo. */
+export interface PlanRename {
+  id: string;
+  oldName: string;
+  newName: string;
+}
+
+/** Planes presentes en ambos catálogos (por id) con nombre distinto. */
+export function detectPlanRenames(
+  previous: CostsConfig | null | undefined,
+  next: CostsConfig,
+): PlanRename[] {
+  if (!previous) return [];
+  const before = new Map(
+    [...previous.memberships, ...previous.personalized].map((p) => [p.id, p.name]),
+  );
+  return [...next.memberships, ...next.personalized].flatMap((p) => {
+    const oldName = before.get(p.id);
+    return oldName !== undefined && oldName !== p.name
+      ? [{ id: p.id, oldName, newName: p.name }]
+      : [];
+  });
+}
+
+/**
+ * Aplica los renombres a los estudiantes (función pura). Los vinculados por
+ * `planId` toman el nombre nuevo; los antiguos sin `planId` que tenían el
+ * nombre anterior se enlazan al plan y toman el nombre nuevo. Devuelve los
+ * mismos objetos si no hay cambios.
+ */
+export function applyPlanRenames<T extends Pick<Student, 'planName'> & { planId?: string }>(
+  students: T[],
+  renames: PlanRename[],
+): T[] {
+  if (renames.length === 0) return students;
+  return students.map((s) => {
+    const rename = s.planId
+      ? renames.find((r) => r.id === s.planId)
+      : renames.find((r) => r.oldName === s.planName);
+    if (!rename || (s.planId === rename.id && s.planName === rename.newName)) return s;
+    return { ...s, planId: rename.id, planName: rename.newName };
+  });
+}
+
 /**
  * Planes grupales por defecto (mensualidad).
  * Incluyen Premium, Estándar, Básico, Funcional y Clase única.
@@ -247,3 +291,4 @@ export class MembershipService {
     return defaults;
   }
 }
+
