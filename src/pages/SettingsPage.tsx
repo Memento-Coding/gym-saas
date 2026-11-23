@@ -49,7 +49,11 @@ export function SettingsPage() {
     importBackup,
     resetData,
   } = useSettings();
-  const { students, isLoading: studentsLoading, error: studentsError } = useStudents();
+  const { students, isLoading: studentsLoading, error: studentsError, reload: reloadStudents } = useStudents();
+  const handleSaveCosts = async (c: Parameters<typeof saveCosts>[0]) => {
+    await saveCosts(c);
+    await reloadStudents();
+  };
 
   // Communication channel state (simple panel)
   const [channels, setChannels] = useState<ChannelConfig[]>([]);
@@ -152,7 +156,7 @@ export function SettingsPage() {
         <TabsContent value="plans">
           <PlanEditor
             costs={costs}
-            onSave={saveCosts}
+            onSave={handleSaveCosts}
             students={studentsLoading || studentsError ? undefined : students}
           />
         </TabsContent>
@@ -226,3 +230,4 @@ export function SettingsPage() {
     </div>
   );
 }
+

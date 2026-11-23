@@ -1,6 +1,13 @@
 /**
  * Campos del formulario de estudiantes: catálogo del sistema y resolución de lo
  * que cada gimnasio configuró en Ajustes (`resolveStudentFields`).
+ *
+ * Lo que se guarda en Ajustes es una lista ordenada de campos (`formFields`):
+ *  - el ORDEN de la lista es el orden del formulario;
+ *  - un campo del sistema puede traer una etiqueta propia (alias); su `name`
+ *    (clave interna) nunca cambia;
+ *  - la entrada especial `adultsOnly` indica que el gimnasio solo atiende adultos
+ *    y oculta el bloque de menor de edad / acudiente.
  */
 
 import type { FormFieldConfig } from '@/types/settings';
@@ -19,12 +26,16 @@ export const DEFAULT_STUDENT_FIELDS: FormFieldConfig[] = [
   { id: 'subscriptionEndDate', name: 'subscriptionEndDate', label: 'Vencimiento', type: 'date', required: true, isBuiltIn: true },
 ];
 
+/** Clave del campo compuesto: se edita como nombre + teléfono (emergencyName/emergencyPhone). */
+export const EMERGENCY_CONTACT_FIELD = 'emergencyContact';
+
 /** Campos del sistema apagados por defecto, que un gimnasio puede activar. */
 const OPTIONAL_STUDENT_FIELDS: FormFieldConfig[] = [
   { id: 'bloodType', name: 'bloodType', label: 'Tipo de sangre', type: 'select', required: false, isBuiltIn: true,
     options: ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'] },
   { id: 'beltRank', name: 'beltRank', label: 'Grado o cinturón', type: 'text', required: false, isBuiltIn: true },
   { id: 'medicalNotes', name: 'medicalNotes', label: 'Observaciones médicas', type: 'text', required: false, isBuiltIn: true },
+  { id: EMERGENCY_CONTACT_FIELD, name: EMERGENCY_CONTACT_FIELD, label: 'Contacto de emergencia', type: 'text', required: false, isBuiltIn: true },
 ];
 
 export const STUDENT_FIELD_CATALOG = [...DEFAULT_STUDENT_FIELDS, ...OPTIONAL_STUDENT_FIELDS];
@@ -39,28 +50,82 @@ export const LOCKED_STUDENT_FIELDS = new Set([
 ]);
 
 /**
- * Convierte lo guardado en Ajustes en los campos que muestra el formulario: la
- * definición de los campos del sistema siempre sale del catálogo y de lo guardado
- * solo se toma si se piden y si son obligatorios. Sin configuración de campos del
- * sistema (gimnasio nuevo o solo con campos propios) se usan los de por defecto.
+ * Marca guardada junto a los campos: el gimnasio solo atiende adultos. Existe solo
+ * cuando está activa, así un gimnasio con configuración anterior sigue viendo el
+ * bloque de menor de edad.
+ */
+export const ADULTS_ONLY_FIELD: FormFieldConfig = {
+  id: 'adultsOnly',
+  name: 'adultsOnly',
+  label: 'Solo adultos',
+  type: 'text',
+  required: false,
+  isBuiltIn: true,
+};
+
+/** ¿La configuración guardada oculta el bloque de menor de edad / acudiente? */
+export function isAdultsOnly(saved: FormFieldConfig[]): boolean {
+  return saved.some((f) => f.name === ADULTS_ONLY_FIELD.name);
+}
+
+/** Agrega o quita la marca `adultsOnly` de una lista de campos. */
+export function withAdultsOnly(fields: FormFieldConfig[], adultsOnly: boolean): FormFieldConfig[] {
+  const rest = fields.filter((f) => f.name !== ADULTS_ONLY_FIELD.name);
+  return adultsOnly ? [...rest, ADULTS_ONLY_FIELD] : rest;
+}
+
+/**
+ * Convierte lo guardado en Ajustes en los campos que muestra el formulario, en el
+ * orden guardado. La definición de los campos del sistema siempre sale del
+ * catálogo; de lo guardado solo se toma si se piden, si son obligatorios y la
+ * etiqueta propia (si no hay, se usa la original). Sin configuración de campos
+ * del sistema (gimnasio nuevo o solo con campos propios) se usan los de por
+ * defecto y los propios van al final.
  */
 export function resolveStudentFields(saved: FormFieldConfig[]): FormFieldConfig[] {
-  const byName = new Map(saved.map((f) => [f.name, f]));
-  const configured = byName.has('firstName');
+  const catalog = new Map(STUDENT_FIELD_CATALOG.map((f) => [f.name, f]));
+  const configured = saved.some((f) => f.name === 'firstName');
+  const seen = new Set<string>();
 
-  const builtIn = STUDENT_FIELD_CATALOG.flatMap((field) => {
-    if (LOCKED_STUDENT_FIELDS.has(field.name)) return [field];
-    if (!configured) return DEFAULT_STUDENT_FIELDS.includes(field) ? [field] : [];
-    const choice = byName.get(field.name);
-    return choice ? [{ ...field, required: choice.required }] : [];
-  });
+  const resolved: FormFieldConfig[] = [];
+  const custom: FormFieldConfig[] = [];
 
-  const catalogNames = new Set(STUDENT_FIELD_CATALOG.map((f) => f.name));
-  const custom = saved
-    .filter((f) => !catalogNames.has(f.name))
-    .map((f) => ({ ...f, isBuiltIn: false }));
+  for (const field of saved) {
+    if (field.name === ADULTS_ONLY_FIELD.name || seen.has(field.name)) continue;
+    seen.add(field.name);
 
-  return [...builtIn, ...custom];
+    const base = catalog.get(field.name);
+    if (!base) {
+      const entry = { ...field, isBuiltIn: false };
+      (configured ? resolved : custom).push(entry);
+      continue;
+    }
+    if (!configured) continue; // Sin configuración del sistema, mandan los defaults.
+    resolved.push({
+      ...base,
+      label: field.label?.trim() || base.label,
+      required: LOCKED_STUDENT_FIELDS.has(base.name) ? base.required : field.required,
+    });
+  }
+
+  if (!configured) {
+    return [...DEFAULT_STUDENT_FIELDS.map((f) => ({ ...f })), ...custom];
+  }
+
+  // Los campos que siempre se piden y faltan en lo guardado vuelven a su lugar
+  // del catálogo (tras el campo bloqueado/por defecto anterior que sí esté).
+  for (const field of DEFAULT_STUDENT_FIELDS) {
+    if (!LOCKED_STUDENT_FIELDS.has(field.name) || seen.has(field.name)) continue;
+    const index = DEFAULT_STUDENT_FIELDS.findIndex((f) => f.name === field.name);
+    const previous = DEFAULT_STUDENT_FIELDS.slice(0, index)
+      .map((f) => f.name)
+      .reverse()
+      .map((name) => resolved.findIndex((r) => r.name === name))
+      .find((i) => i >= 0);
+    resolved.splice(previous === undefined ? 0 : previous + 1, 0, { ...field });
+  }
+
+  return resolved;
 }
 
 /**

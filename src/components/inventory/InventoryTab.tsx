@@ -14,14 +14,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useInventory } from '@/hooks/useInventory';
-import type { CreateInventoryItemInput } from '@/services/InventoryService';
+import { planInventoryEdit, type CreateInventoryItemInput } from '@/services/InventoryService';
 import type { InventoryItem } from '@/types/inventory';
 
 import { InventoryForm } from './InventoryForm';
 import { InventoryList } from './InventoryList';
 
 export function InventoryTab() {
-  const { items, loading, createItem, updateItem, deleteItem } = useInventory();
+  const { items, loading, createItem, updateItem, adjustStock, deleteItem } = useInventory();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [saving, setSaving] = useState(false);
@@ -33,7 +33,14 @@ export function InventoryTab() {
 
   const handleSubmit = async (input: CreateInventoryItemInput) => {
     setSaving(true);
-    const result = editing ? await updateItem(editing.id, input) : await createItem(input);
+    let result;
+    if (editing) {
+      const { changes, stockDelta } = planInventoryEdit(editing, input);
+      result = await updateItem(editing.id, changes);
+      if (result.success && stockDelta !== 0) result = await adjustStock(editing.id, stockDelta);
+    } else {
+      result = await createItem(input);
+    }
     setSaving(false);
     if (!result.success) {
       toast.error(result.error);

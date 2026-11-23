@@ -53,6 +53,29 @@ function generateId(): string {
   return `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Separa una edición en cambios de datos y variación de stock.
+ *
+ * El stock que trae el formulario es el de cuando se abrió; si se enviara como
+ * valor absoluto pisaría ventas hechas mientras tanto. Por eso un producto que
+ * sigue siendo producto aplica solo la diferencia `nuevo - inicial` (`stockDelta`)
+ * y, si el stock no se tocó, no envía nada de stock.
+ */
+export function planInventoryEdit(
+  initial: Pick<InventoryItem, 'kind' | 'stock'>,
+  input: CreateInventoryItemInput,
+): { changes: CreateInventoryItemInput; stockDelta: number } {
+  const keepsStock =
+    initial.kind === 'product' &&
+    initial.stock !== null &&
+    input.kind === 'product' &&
+    typeof input.stock === 'number';
+  if (!keepsStock) return { changes: input, stockDelta: 0 };
+
+  const { stock, ...changes } = input;
+  return { changes, stockDelta: (stock as number) - (initial.stock as number) };
+}
+
 export class InventoryService {
   private storageService: StorageService;
 
@@ -292,6 +315,39 @@ export class InventoryService {
     });
 
     await this.write(updated);
+    return { success: true, data: updated };
+  }
+
+  /**
+   * Aplica una variación de stock (positiva o negativa) sobre el valor VIGENTE.
+   * A diferencia de `setStock`, no pisa movimientos ocurridos mientras el
+   * usuario tenía abierto un formulario. Rechaza dejar el stock bajo cero.
+   */
+  async adjustStock(itemId: string, delta: number): Promise<ServiceResult<InventoryItem>> {
+    if (!Number.isInteger(delta)) {
+      return { success: false, error: 'La variación de stock debe ser un entero.' };
+    }
+
+    const items = await this.read();
+    const index = items.findIndex((i) => i.id === itemId);
+    if (index === -1) {
+      return { success: false, error: 'Ítem de inventario no encontrado.' };
+    }
+
+    const item = items[index];
+    if (item.kind === 'service' || item.stock === null) {
+      return { success: false, error: 'Los servicios no manejan stock.' };
+    }
+    if (item.stock + delta < 0) {
+      return {
+        success: false,
+        error: `El ajuste dejaría el stock en negativo (stock actual: ${item.stock}).`,
+      };
+    }
+
+    const updated: InventoryItem = { ...item, stock: item.stock + delta };
+    items[index] = updated;
+    await this.write(items);
     return { success: true, data: updated };
   }
 

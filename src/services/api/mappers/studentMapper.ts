@@ -17,6 +17,7 @@
  */
 
 import type { DocumentTypeCode, Student } from '@/types/student';
+import { parseEmergencyContact, serializeEmergencyContact } from '@/utils/emergencyContact';
 
 /** Forma (parcial) del Student devuelto por la API. */
 export interface ApiStudent {
@@ -114,8 +115,19 @@ function toFrontCategory(category: string | undefined): Student['planCategory'] 
 export function apiToStudent(api: ApiStudent, prev?: Student): Student {
   const base = prev ? { ...prev } : studentDefaults();
 
+  // La API solo guarda el texto combinado: si coincide con lo que ya tenemos
+  // localmente se conserva; si no, se parte de vuelta en nombre y teléfono.
+  const emergency =
+    api.emergencyContact === undefined ||
+    serializeEmergencyContact(base.emergencyName, base.emergencyPhone) ===
+      api.emergencyContact.trim()
+      ? { name: base.emergencyName, phone: base.emergencyPhone }
+      : parseEmergencyContact(api.emergencyContact);
+
   return {
     ...base,
+    emergencyName: emergency.name,
+    emergencyPhone: emergency.phone,
     id: api.id ?? base.id,
     firstName: api.firstName ?? base.firstName,
     lastName: api.lastName ?? base.lastName,
@@ -158,9 +170,10 @@ export function apiToStudent(api: ApiStudent, prev?: Student): Student {
  * Solo se envían los campos que la API conoce.
  */
 export function studentToApi(student: Student): Record<string, unknown> {
-  const emergencyContact = [student.emergencyName, student.emergencyPhone]
-    .filter((v) => v && v.length > 0)
-    .join(' - ');
+  const emergencyContact = serializeEmergencyContact(
+    student.emergencyName,
+    student.emergencyPhone,
+  );
 
   return {
     firstName: student.firstName,

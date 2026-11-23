@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { copAmount, isFutureDate, isoDateSchema, messages, textSchema } from '@/utils/validation';
+import { sanitizeNumericInput } from '@/utils/sanitize';
 import type { FinanceBox, TransferInput } from '@/services/FinanceService';
 import type { PaymentMethod } from '@/types/payment';
 
@@ -115,7 +116,7 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
 
   const form = useForm<TransferFormValues>({
     resolver,
-    mode: 'onSubmit',
+    mode: 'onTouched',
     defaultValues: {
       date: todayISO(),
       amount: '',
@@ -186,6 +187,7 @@ export function TransferForm({ onSubmit, submitting = false }: TransferFormProps
                   inputMode="numeric"
                   placeholder="0"
                   {...field}
+                  onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value))}
                 />
               </FormControl>
               <FormMessage />

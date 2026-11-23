@@ -20,7 +20,11 @@ import { CreditCard, Pencil, Snowflake, Sun, Trash2 } from 'lucide-react';
 
 import type { Student } from '@/types/student';
 import type { FormFieldConfig } from '@/types/settings';
-import { DEFAULT_STUDENT_FIELDS } from '@/components/students/studentFormFields';
+import {
+  DEFAULT_STUDENT_FIELDS,
+  EMERGENCY_CONTACT_FIELD,
+} from '@/components/students/studentFormFields';
+import { serializeEmergencyContact } from '@/utils/emergencyContact';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +54,8 @@ export interface StudentProfileProps {
   student: Student | null;
   /** Campos configurados en Ajustes, para mostrar los que no son fijos del perfil. */
   fields?: FormFieldConfig[];
+  /** El gimnasio solo atiende adultos: se omite la fila de edad salvo para un menor ya registrado. */
+  adultsOnly?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: (student: Student) => void;
@@ -64,6 +70,7 @@ export interface StudentProfileProps {
 export function StudentProfile({
   student,
   fields = [],
+  adultsOnly = false,
   open,
   onOpenChange,
   onEdit,
@@ -183,10 +190,12 @@ export function StudentProfile({
             />
             <DetailRow label="Teléfono" value={student.phone || '—'} />
             <DetailRow label="Email" value={student.email || '—'} />
-            <DetailRow
-              label="Edad"
-              value={student.isMinor ? 'Menor de edad' : 'Adulto'}
-            />
+            {(!adultsOnly || student.isMinor) && (
+              <DetailRow
+                label="Edad"
+                value={student.isMinor ? 'Menor de edad' : 'Adulto'}
+              />
+            )}
             {student.isMinor && (
               <DetailRow
                 label="Acudiente"
@@ -201,8 +210,10 @@ export function StudentProfile({
               .filter((f) => !DEFAULT_STUDENT_FIELDS.some((d) => d.name === f.name))
               .map((f) => {
                 const value =
-                  student.customFields?.[f.name] ??
-                  (student as unknown as Record<string, unknown>)[f.name];
+                  f.name === EMERGENCY_CONTACT_FIELD
+                    ? serializeEmergencyContact(student.emergencyName, student.emergencyPhone)
+                    : (student.customFields?.[f.name] ??
+                      (student as unknown as Record<string, unknown>)[f.name]);
                 return (
                   <DetailRow
                     key={f.id}

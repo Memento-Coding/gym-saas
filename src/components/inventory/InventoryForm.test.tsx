@@ -70,6 +70,41 @@ describe('InventoryForm — validación', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // @adversarial
+  it('@adversarial no acepta letras al escribir ni al pegar en campos numéricos', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    for (const label of [/costo/i, /precio/i, /stock inicial/i]) {
+      const input = screen.getByLabelText(label) as HTMLInputElement;
+      await user.type(input, 'abc');
+      expect(input.value).toBe('');
+      await user.click(input);
+      await user.paste('12xyz34');
+      expect(input.value).toBe('1234');
+    }
+  });
+
+  it('@adversarial muestra el error de negativo al perder el foco (onTouched)', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByLabelText(/precio/i), '-100');
+    await user.tab();
+
+    expect(await screen.findByText(/no puede ser negativo/i)).toBeInTheDocument();
+  });
+
+  it('@adversarial muestra el error de decimal al perder el foco (onTouched)', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByLabelText(/precio/i), '10.5');
+    await user.tab();
+
+    expect(await screen.findByText(/solo puede contener números/i)).toBeInTheDocument();
+  });
+
   it('emite CreateInventoryItemInput válido para un producto', async () => {
     const user = userEvent.setup();
     const { onSubmit } = renderForm();
@@ -113,5 +148,50 @@ describe('InventoryForm — servicios', () => {
     const input = onSubmit.mock.calls[0][0] as CreateInventoryItemInput;
     expect(input.kind).toBe('service');
     expect(input.stock).toBeNull();
+  });
+});
+
+describe('InventoryForm — edición y stock (#99)', () => {
+  const existing = { id: 'a', kind: 'product' as const, name: 'Guantes', cost: 10, price: 20, stock: 10 };
+
+  function renderEdit() {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<InventoryForm defaultValues={existing} onSubmit={onSubmit} />);
+    return onSubmit;
+  }
+
+  it('si no se toca el stock, el payload no lo incluye', async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderEdit();
+    const name = screen.getByLabelText(/nombre/i);
+    await user.clear(name);
+    await user.type(name, 'Guantes Pro');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const input = onSubmit.mock.calls[0][0] as CreateInventoryItemInput;
+    expect(input.name).toBe('Guantes Pro');
+    expect(input).not.toHaveProperty('stock');
+  });
+
+  it('si se edita el stock, el payload lo incluye', async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderEdit();
+    const stock = screen.getByLabelText(/stock/i);
+    await user.clear(stock);
+    await user.type(stock, '15');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect((onSubmit.mock.calls[0][0] as CreateInventoryItemInput).stock).toBe(15);
+  });
+
+  it('escribir de nuevo el mismo valor no cuenta como cambio', async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderEdit();
+    const stock = screen.getByLabelText(/stock/i);
+    await user.clear(stock);
+    await user.type(stock, '10');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('stock');
   });
 });
