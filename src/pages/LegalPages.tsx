@@ -13,7 +13,7 @@ import { LEGAL_UPDATED } from '@/config/legal';
 // Persona natural responsable mientras no exista una empresa constituida.
 const OPERATOR = 'GymOps';
 const RESPONSIBLE = 'Jhoan Sebastian Rojas';
-const CONTACT_EMAIL = 'privacidad@gym-ops.fit';
+const CONTACT_EMAIL = 'jhosebro2108@gmail.com';
 
 function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
