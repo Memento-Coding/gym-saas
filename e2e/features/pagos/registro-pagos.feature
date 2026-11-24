@@ -47,7 +47,8 @@ Característica: Registro de pagos de membresía
 
   @adversarial
   Escenario: No se puede registrar un pago sin elegir un plan
-    Cuando confirma el pago sin elegir un plan
+    Cuando el plan actual del estudiante ya no existe
+    Y confirma el pago sin elegir un plan
     Entonces no debería existir ningún pago registrado
     Y el formulario de pago debería seguir abierto mostrando un error
 
