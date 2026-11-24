@@ -18,6 +18,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pencil, Save, X } from 'lucide-react';
 import type { ConsentConfig } from '@/types/consent';
 
+// Borrador inicial cuando el gimnasio aún no ha escrito su texto. Debe revisarlo antes de usarlo.
+export const DEFAULT_ADULT_TEXT = `Yo, el abajo firmante, declaro que:
+
+1. Me encuentro en buenas condiciones de salud para realizar actividad física y he informado al gimnasio de cualquier condición médica, lesión o medicamento relevante.
+2. Conozco que el ejercicio físico implica riesgos de lesión y acepto participar de forma voluntaria, siguiendo las indicaciones de los entrenadores.
+3. Me comprometo a usar correctamente los equipos y a respetar el reglamento del gimnasio.
+4. Autorizo al gimnasio a tratar mis datos personales para gestionar mi inscripción, pagos y comunicaciones, conforme a la Ley 1581 de 2012. Puedo conocer, actualizar, rectificar o suprimir mis datos en cualquier momento.`;
+
+export const DEFAULT_MINOR_TEXT = `Yo, en calidad de padre, madre o representante legal del menor inscrito, declaro que:
+
+1. El menor se encuentra en buenas condiciones de salud para realizar actividad física y he informado al gimnasio de cualquier condición médica, lesión o medicamento relevante.
+2. Conozco que el ejercicio físico implica riesgos de lesión y autorizo su participación, bajo la supervisión de los entrenadores.
+3. Me comprometo a que el menor use correctamente los equipos y respete el reglamento del gimnasio.
+4. Autorizo al gimnasio a tratar los datos personales del menor para gestionar su inscripción, pagos y comunicaciones, conforme a la Ley 1581 de 2012, respetando su interés superior. Puedo conocer, actualizar, rectificar o suprimir sus datos en cualquier momento.`;
+
 interface ConsentViewerProps {
   config: ConsentConfig;
   onUpdateVersion: (text: string, minorText: string) => Promise<void>;
@@ -34,8 +49,8 @@ export function ConsentViewer({ config, onUpdateVersion }: ConsentViewerProps) {
     : 'Sin fecha';
 
   const handleEdit = () => {
-    setAdultText(config.text);
-    setMinorText(config.minorText);
+    setAdultText(config.text || DEFAULT_ADULT_TEXT);
+    setMinorText(config.minorText || DEFAULT_MINOR_TEXT);
     setIsEditing(true);
   };
 
@@ -123,6 +138,12 @@ export function ConsentViewer({ config, onUpdateVersion }: ConsentViewerProps) {
             )}
           </TabsContent>
         </Tabs>
+
+        {isEditing && (!adultText.trim() || !minorText.trim()) && (
+          <p role="alert" className="text-sm text-destructive mt-4">
+            Completa los dos textos (adultos y menores) para guardar.
+          </p>
+        )}
 
         {isEditing && (
           <div className="flex gap-2 justify-end mt-4">

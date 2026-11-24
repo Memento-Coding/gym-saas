@@ -16,6 +16,7 @@ import { useStudents } from '@/hooks/useStudents';
 import { useFinance } from '@/hooks/useFinance';
 import {
   calculateMetrics,
+  payingStudentsByMonth,
   generateAlerts,
   isBirthdayToday,
   type DashboardAlert,
@@ -43,6 +44,8 @@ export function DashboardPage() {
     () => calculateMetrics(students, movements),
     [students, movements],
   );
+
+  const monthly = useMemo(() => payingStudentsByMonth(movements), [movements]);
 
   // Alertas ordenadas por urgencia (Req 10.2).
   // Las cuotas de cartera (installments) provienen del módulo de ventas/crédito,
@@ -103,7 +106,7 @@ export function DashboardPage() {
       {/* Alertas + gráfico */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <AlertsList alerts={alerts} loading={loading} onAlertClick={handleAlertClick} />
-        <MonthlyChart />
+        <MonthlyChart data={monthly} />
       </div>
     </div>
   );

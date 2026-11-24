@@ -39,10 +39,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  PAYMENT_LABELS,
+  paymentBadgeFor,
   derivePaymentStatus,
   formatDate,
-  paymentBadgeStyle,
   statusBadgeStyle,
 } from './studentStatus';
 import { formatDocument, positiveInteger } from '@/utils/validation';
@@ -92,6 +91,7 @@ export function StudentProfile({
 
   const isFrozen = student.status === 'frozen';
   const payment = derivePaymentStatus(student);
+  const badge = paymentBadgeFor(student, payment);
   // El congelamiento solo está disponible para cuentas activas y al día / por vencer.
   const canFreeze =
     student.status === 'active' && (payment === 'al_dia' || payment === 'por_vencer');
@@ -146,10 +146,10 @@ export function StudentProfile({
               {/* Badge de estado de pago — coherente con la tabla */}
               <Badge
                 className="border-transparent"
-                style={paymentBadgeStyle(payment)}
+                style={badge.style}
                 data-testid="profile-payment-badge"
               >
-                {PAYMENT_LABELS[payment]}
+                {badge.label}
               </Badge>
             </div>
             <DialogDescription>
@@ -182,9 +182,9 @@ export function StudentProfile({
               value={
                 <Badge
                   className="border-transparent"
-                  style={paymentBadgeStyle(payment)}
+                  style={badge.style}
                 >
-                  {PAYMENT_LABELS[payment]}
+                  {badge.label}
                 </Badge>
               }
             />

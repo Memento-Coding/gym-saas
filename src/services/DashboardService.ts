@@ -305,3 +305,35 @@ export function isBirthdayToday(dateOfBirth: string, now: Date = new Date()): bo
   // getMonth() es 0-indexado; sumamos 1 para comparar con el mes 1-indexado.
   return month === now.getMonth() + 1 && day === now.getDate();
 }
+
+const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/**
+ * Alumnos distintos que pagaron membresía en cada uno de los últimos `months`
+ * meses, contra el mismo mes del año anterior. Cuenta ingresos de la caja de
+ * servicios con alumno (los que registra PaymentService).
+ */
+export function payingStudentsByMonth(
+  movements: FinanceMovement[],
+  now: Date = new Date(),
+  months = 6,
+): Array<{ month: string; currentYear: number; previousYear: number }> {
+  const byMonth = new Map<string, Set<string>>();
+  for (const m of movements) {
+    if (m.type !== 'income' || m.box !== 'servicios' || !m.studentId) continue;
+    const key = m.date.slice(0, 7); // YYYY-MM
+    if (!byMonth.has(key)) byMonth.set(key, new Set());
+    byMonth.get(key)!.add(m.studentId);
+  }
+  const count = (y: number, mo: number) =>
+    byMonth.get(`${y}-${String(mo + 1).padStart(2, '0')}`)?.size ?? 0;
+
+  const out = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const y = d.getFullYear();
+    const mo = d.getMonth();
+    out.push({ month: MONTH_LABELS[mo], currentYear: count(y, mo), previousYear: count(y - 1, mo) });
+  }
+  return out;
+}

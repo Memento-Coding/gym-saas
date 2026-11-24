@@ -117,12 +117,12 @@ describe('StudentForm — primer pago', () => {
     expect(screen.queryByLabelText(/registrar primer pago ahora/i)).not.toBeInTheDocument();
   });
 
-  it('sin catálogo de planes no muestra la sección ni envía firstPayment', async () => {
+  it('sin catálogo de planes no muestra la sección y crea sin pago (nace vencido)', async () => {
     const user = userEvent.setup();
     const onSubmit = setup({ firstName: 'Ana', documentId: '1001' }, false);
     expect(screen.queryByLabelText(/registrar primer pago ahora/i)).not.toBeInTheDocument();
     await save(user);
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0]).toHaveLength(1);
+    expect(onSubmit.mock.calls[0][1]).toBeNull();
   });
 });

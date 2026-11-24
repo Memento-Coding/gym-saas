@@ -143,6 +143,7 @@ export function StudentProfilePage() {
             <PaymentForm
               studentId={student.id}
               currentEndDate={student.subscriptionEndDate}
+              currentPlanName={student.planName}
               onSubmit={handlePayment}
               submitting={saving}
             />
