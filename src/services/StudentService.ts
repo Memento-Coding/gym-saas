@@ -467,8 +467,21 @@ export class StudentService {
         return { success: false, error: 'Estudiante no encontrado.' };
       }
 
+      // Al volver antes de tiempo se descuentan los días congelados que no se usaron.
+      const current = students[index];
+      const DAY_MS = 86_400_000;
+      const today = Date.parse(this.toIsoDate(new Date()));
+      const freezeEnd = Date.parse(current.freezeEndDate ?? '');
+      const subEnd = Date.parse(current.subscriptionEndDate);
+      const unusedMs = freezeEnd > today ? freezeEnd - today : 0;
+      const subscriptionEndDate =
+        unusedMs > 0 && !Number.isNaN(subEnd)
+          ? this.toIsoDate(new Date(subEnd - Math.round(unusedMs / DAY_MS) * DAY_MS))
+          : current.subscriptionEndDate;
+
       const thawed: Student = {
-        ...students[index],
+        ...current,
+        subscriptionEndDate,
         freezeReason: undefined,
         freezeDate: undefined,
         freezeEndDate: undefined,

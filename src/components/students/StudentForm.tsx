@@ -657,7 +657,8 @@ export function StudentForm({
 
     const data = assembleStudentData(values, fields, defaultValues, plans, minorBlock);
     if (!canPayNow) {
-      await onSubmit(data);
+      // Sin plan no hay cobro: al crear nace vencido en vez de "al día" sin pagar.
+      await onSubmit(data, defaultValues?.id ? undefined : null);
       return;
     }
     if (values.registerFirstPayment !== true) {

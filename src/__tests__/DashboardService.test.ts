@@ -15,10 +15,12 @@ import {
   calculateMetrics,
   classifyStudent,
   generateAlerts,
+  payingStudentsByMonth,
   isBirthdayToday,
   type StudentCategory,
 } from '@/services/DashboardService';
 import type { Student } from '@/types/student';
+import type { FinanceMovement } from '@/types/finance';
 import type { ConsentRecord } from '@/types/consent';
 
 // =============================================================================
@@ -226,5 +228,45 @@ describe('DashboardService — Property-based tests', () => {
       ),
       { numRuns: 100 },
     );
+  });
+});
+
+describe('payingStudentsByMonth', () => {
+  const mov = (date: string, studentId: string | undefined, over: Partial<FinanceMovement> = {}): FinanceMovement => ({
+    id: Math.random().toString(36), type: 'income', date, concept: 'x', category: 'Mensualidades',
+    amount: 1, box: 'servicios', studentId, ...over,
+  });
+  const now = new Date(2026, 10, 24); // 24 nov 2026
+
+  it('cuenta alumnos distintos por mes y compara con el año anterior', () => {
+    const data = payingStudentsByMonth([
+      mov('2026-11-02', 'a'), mov('2026-11-20', 'a'), mov('2026-11-05', 'b'),
+      mov('2025-11-10', 'a'),
+      mov('2026-06-01', 'c'),
+    ], now);
+    expect(data.map((d) => d.month)).toEqual(['Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov']);
+    expect(data[5]).toEqual({ month: 'Nov', currentYear: 2, previousYear: 1 });
+    expect(data[0].currentYear).toBe(1);
+  });
+
+  it('ignora gastos, ventas de almacén y movimientos sin alumno', () => {
+    const data = payingStudentsByMonth([
+      mov('2026-11-02', 'a', { type: 'expense' }),
+      mov('2026-11-02', 'b', { box: 'almacen' }),
+      mov('2026-11-02', undefined),
+    ], now);
+    expect(data[5].currentYear).toBe(0);
+  });
+
+  it('cruza el cambio de año (enero muestra meses del año anterior)', () => {
+    const data = payingStudentsByMonth([mov('2025-12-15', 'a'), mov('2024-12-15', 'b')], new Date(2026, 0, 10), 2);
+    expect(data).toEqual([
+      { month: 'Dic', currentYear: 1, previousYear: 1 },
+      { month: 'Ene', currentYear: 0, previousYear: 0 },
+    ]);
+  });
+
+  it('sin movimientos devuelve ceros, no vacío', () => {
+    expect(payingStudentsByMonth([], now)).toHaveLength(6);
   });
 });

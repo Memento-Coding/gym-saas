@@ -11,7 +11,7 @@
  * Requirements: 5.1, 5.3, 5.4, 5.6, 5.7
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -80,6 +80,8 @@ interface PaymentFormProps {
   studentId: string;
   /** Vencimiento actual del estudiante, para anticipar cómo queda tras el pago. */
   currentEndDate?: string;
+  /** Plan actual del estudiante (por nombre): se preselecciona al abrir. */
+  currentPlanName?: string;
   /** Recibe el PaymentInput ensamblado; la persistencia la hace el padre (usePayments). */
   onSubmit: (input: PaymentInput) => Promise<void> | void;
   submitting?: boolean;
@@ -136,7 +138,7 @@ function buildPaymentSchema(allPlans: MembershipPlan[]) {
     });
 }
 
-export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = false }: PaymentFormProps) {
+export function PaymentForm({ studentId, currentEndDate, currentPlanName, onSubmit, submitting = false }: PaymentFormProps) {
   const { groupPlans, personalizedPlans, getPlanById } = useMemberships();
 
   const [splitEnabled, setSplitEnabled] = useState(false);
@@ -172,6 +174,13 @@ export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = 
       installmentType: 'single',
     },
   });
+
+  // Preselecciona el plan actual cuando llega el catálogo, sin pisar una elección.
+  useEffect(() => {
+    if (!currentPlanName || form.getValues('planId')) return;
+    const current = allPlans.find((p) => p.name === currentPlanName);
+    if (current) form.setValue('planId', current.id);
+  }, [allPlans, currentPlanName, form]);
 
   const planId = form.watch('planId');
   const status = form.watch('status');
@@ -254,7 +263,8 @@ export function PaymentForm({ studentId, currentEndDate, onSubmit, submitting = 
           render={({ field }) => (
             <FormItem>
               <FormLabel>Plan</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
+              {/* Radix emite '' por su <select> oculto cuando el valor llega antes que las opciones: lo ignoramos para no borrar el plan preseleccionado. */}
+              <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
                 <FormControl>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecciona un plan" />

@@ -1,9 +1,6 @@
 /**
- * MonthlyChart — Gráfico comparativo de estudiantes activos por mes.
- *
- * BarChart de recharts que compara el año actual contra el anterior
- * (Requirement 10.3). Recibe los datos por props; si no se proveen, usa datos
- * dummy (6 meses) para desarrollo. En la Fase 2 se conectarán los datos reales.
+ * MonthlyChart — Alumnos que pagaron por mes, año actual contra el anterior
+ * (Requirement 10.3). Los datos llegan por props (payingStudentsByMonth).
  *
  * Requirements: 10.3
  */
@@ -23,37 +20,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 export interface MonthlyDatum {
   /** Etiqueta del mes, ej. "Ene", "Feb". */
   month: string;
-  /** Estudiantes activos ese mes en el año actual. */
+  /** Alumnos distintos que pagaron ese mes en el año actual. */
   currentYear: number;
-  /** Estudiantes activos ese mes en el año anterior. */
+  /** Alumnos distintos que pagaron ese mes en el año anterior. */
   previousYear: number;
 }
 
 interface MonthlyChartProps {
-  data?: MonthlyDatum[];
+  data: MonthlyDatum[];
   currentYearLabel?: string;
   previousYearLabel?: string;
 }
 
-/** Datos dummy (6 meses) mientras se conecta la fuente real en la Fase 2. */
-const DUMMY_DATA: MonthlyDatum[] = [
-  { month: 'Mar', currentYear: 38, previousYear: 30 },
-  { month: 'Abr', currentYear: 42, previousYear: 33 },
-  { month: 'May', currentYear: 40, previousYear: 36 },
-  { month: 'Jun', currentYear: 45, previousYear: 38 },
-  { month: 'Jul', currentYear: 48, previousYear: 41 },
-  { month: 'Ago', currentYear: 52, previousYear: 44 },
-];
-
 export function MonthlyChart({
-  data = DUMMY_DATA,
+  data,
   currentYearLabel = 'Año actual',
   previousYearLabel = 'Año anterior',
 }: MonthlyChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Estudiantes activos por mes</CardTitle>
+        <CardTitle className="text-base">Alumnos que pagaron por mes</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-72 w-full">
