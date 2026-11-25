@@ -208,8 +208,8 @@ describe('StudentList — sección de congelados', () => {
 
     expect(screen.getByText(/membresías congeladas/i)).toBeInTheDocument();
 
-    // El congelado igual muestra su badge de pago (Al día, ya que su fecha es futura)
-    expect(getBadge('payment-badge-helado')).toHaveTextContent('Al día');
+    // Un congelado muestra "Congelado", no "Al día" (decisión del piloto).
+    expect(getBadge('payment-badge-helado')).toHaveTextContent('Congelado');
   });
 });
 

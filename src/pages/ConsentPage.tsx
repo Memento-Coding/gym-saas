@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useConsent } from '@/hooks/useConsent';
@@ -64,9 +65,14 @@ export function ConsentPage() {
     if (!signingStudent) return;
 
     try {
-      await signConsent(signingStudent.id, dataUrl, signingAsGuardian);
+      const signed = await signConsent(signingStudent.id, dataUrl, signingAsGuardian);
       setSignDialogOpen(false);
       setSigningStudent(null);
+      // Firmado sale de la lista de pendientes: el PDF se ofrece aquí o se pierde.
+      toast.success(`Consentimiento de ${signed.firstName} ${signed.lastName} firmado.`, {
+        duration: 15_000,
+        action: { label: 'Descargar PDF', onClick: () => void handleGeneratePDF(signed) },
+      });
     } catch {
       // Error is handled by the hook
     }

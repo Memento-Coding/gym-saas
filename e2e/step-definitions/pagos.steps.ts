@@ -7,7 +7,7 @@ import { expect, type Download } from '@playwright/test';
 import { When, Then } from '../support/world';
 import { PagosPage } from '../pages/PagosPage';
 import { TEST_STUDENT } from '../fixtures/students';
-import { lsGet } from '../helpers/seed';
+import { lsGet, seedAll } from '../helpers/seed';
 import { diasDesdeHoy } from '../helpers/dates';
 
 let pagos: PagosPage;
@@ -37,6 +37,13 @@ When('confirma un pago del primer plan con fecha de pago en {int} días', async 
   await pagos.elegirPrimerPlan();
   await pagos.dialog.getByLabel('Fecha de pago').fill(diasDesdeHoy(dias));
   await pagos.btnConfirmar.click();
+});
+
+// El formulario preselecciona el plan actual; solo queda vacío si ese plan ya no existe.
+When('el plan actual del estudiante ya no existe', async ({ page }) => {
+  const students = (await lsGet<Record<string, unknown>[]>(page, 'students')) ?? [];
+  await seedAll(page, { students: students.map((s) => ({ ...s, planName: 'Plan eliminado' })) });
+  await pagos.abrir(TEST_STUDENT.id);
 });
 
 When('confirma el pago sin elegir un plan', async () => {

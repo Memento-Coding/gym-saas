@@ -31,9 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  PAYMENT_LABELS,
+  paymentBadgeFor,
   formatDate,
-  paymentBadgeStyle,
   derivePaymentStatus,
 } from './studentStatus';
 
@@ -125,6 +124,7 @@ function StudentRow({
   // Estado de pago calculado desde subscriptionEndDate — consistente con el
   // filtro de StudentFilters y con StudentService.filter().
   const paymentStatus = derivePaymentStatus(student);
+  const badge = paymentBadgeFor(student, paymentStatus);
 
   return (
       <motion.tr
@@ -156,10 +156,10 @@ function StudentRow({
         <TableCell>
           <Badge
             className="border-transparent"
-            style={paymentBadgeStyle(paymentStatus)}
+            style={badge.style}
             data-testid={`payment-badge-${student.id}`}
           >
-            {PAYMENT_LABELS[paymentStatus]}
+            {badge.label}
           </Badge>
         </TableCell>
       </motion.tr>

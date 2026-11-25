@@ -104,10 +104,7 @@ export function ChannelSelector({ channels, configs, onUpdate }: ChannelSelector
                   </div>
                   <div>
                     <CardTitle className="text-base">{channel.name}</CardTitle>
-                    <CardDescription>
-                      Fase {channel.phase}
-                      {!isAvailable && ' — No configurado'}
-                    </CardDescription>
+                    {!isAvailable && <CardDescription>No configurado</CardDescription>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

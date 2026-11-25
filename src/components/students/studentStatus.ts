@@ -90,3 +90,14 @@ export function formatDate(iso: string | undefined): string {
     day: 'numeric',
   });
 }
+
+/** Insignia de pago a mostrar: un congelado no está "al día" ni "vencido", está congelado. */
+export function paymentBadgeFor(
+  student: Student,
+  payment: PaymentStatus,
+): { label: string; style: CSSProperties } {
+  if (student.status === 'frozen') {
+    return { label: STATUS_LABELS.frozen, style: statusBadgeStyle('frozen') };
+  }
+  return { label: PAYMENT_LABELS[payment], style: paymentBadgeStyle(payment) };
+}

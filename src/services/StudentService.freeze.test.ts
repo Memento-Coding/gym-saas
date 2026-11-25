@@ -217,3 +217,71 @@ describe('freezeStudent — transición de status', () => {
     expect(reloaded?.status).toBe('frozen');
   });
 });
+
+// =============================================================================
+// Descongelar antes de tiempo devuelve solo los días usados
+// =============================================================================
+
+describe('unfreezeStudent — días usados', () => {
+  it('descongelar el mismo día devuelve el vencimiento original', async () => {
+    const original = daysFromToday(15);
+    const id = await seed(makeStudent({ id: 'uf-1', subscriptionEndDate: original }));
+    await service.freezeStudent(id, 'Viaje', 10);
+
+    const result = await service.unfreezeStudent(id);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.subscriptionEndDate).toBe(original);
+      expect(result.data.freezeEndDate).toBeUndefined();
+      expect(result.data.status).toBe('active');
+    }
+  });
+
+  it('a mitad del congelamiento conserva solo los días ya usados', async () => {
+    // Congelado hace 4 días por 10 días: le quedan 6 sin usar.
+    const id = await seed(
+      makeStudent({
+        id: 'uf-2',
+        status: 'frozen',
+        freezeDate: daysFromToday(-4),
+        freezeEndDate: daysFromToday(6),
+        subscriptionEndDate: daysFromToday(30),
+      }),
+    );
+
+    const result = await service.unfreezeStudent(id);
+
+    expect(result.success && result.data.subscriptionEndDate).toBe(daysFromToday(24));
+  });
+
+  it('si el congelamiento ya terminó no descuenta nada', async () => {
+    const id = await seed(
+      makeStudent({
+        id: 'uf-3',
+        freezeDate: daysFromToday(-12),
+        freezeEndDate: daysFromToday(-2),
+        subscriptionEndDate: daysFromToday(20),
+      }),
+    );
+
+    const result = await service.unfreezeStudent(id);
+
+    expect(result.success && result.data.subscriptionEndDate).toBe(daysFromToday(20));
+  });
+
+  it('sin freezeEndDate (dato importado) no toca el vencimiento', async () => {
+    const id = await seed(
+      makeStudent({ id: 'uf-4', freezeReason: 'Legado', subscriptionEndDate: daysFromToday(9) }),
+    );
+
+    const result = await service.unfreezeStudent(id);
+
+    expect(result.success && result.data.subscriptionEndDate).toBe(daysFromToday(9));
+  });
+
+  it('descongelar un id inexistente falla sin escribir', async () => {
+    const result = await service.unfreezeStudent('no-existe');
+    expect(result.success).toBe(false);
+  });
+});

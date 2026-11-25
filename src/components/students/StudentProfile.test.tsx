@@ -150,7 +150,7 @@ describe('StudentProfile — badge de cuerpo (DetailRow)', () => {
 // =============================================================================
 
 describe('StudentProfile — estudiante congelado', () => {
-  it('badge de cabecera muestra estado de PAGO incluso cuando status="frozen"', () => {
+  it('badge de cabecera muestra "Congelado" cuando status="frozen"', () => {
     // Un estudiante congelado puede tener suscripción vigente o vencida.
     // El badge de cabecera debe reflejar el estado de pago, no "Congelado".
     renderProfile(
@@ -163,8 +163,8 @@ describe('StudentProfile — estudiante congelado', () => {
     );
 
     const badge = screen.getByTestId('profile-payment-badge');
-    // La suscripción es futura → "Al día"
-    expect(badge).toHaveTextContent('Al día');
+    // Congelado manda sobre el estado de pago aunque la suscripción sea futura.
+    expect(badge).toHaveTextContent('Congelado');
     // El panel de congelado sigue apareciendo
     expect(screen.getByText(/membresía congelada/i)).toBeInTheDocument();
   });
